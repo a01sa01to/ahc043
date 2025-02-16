@@ -1,6 +1,6 @@
 extern crate rand;
 use proconio::input;
-use rand::Rng;
+use rand::{seq::SliceRandom, Rng};
 use std::{cmp, collections, time::Instant};
 
 const COST_STATION: u32 = 5000;
@@ -110,7 +110,7 @@ fn in_range(x: i32, y: i32) -> bool {
 }
 
 fn main() {
-    let start_time = Instant::now();
+    let time = Instant::now();
     let mut rng = rand::thread_rng();
 
     // Input
@@ -244,21 +244,18 @@ fn main() {
     }
     let stations = stations;
 
-    eprintln!(
-        "Time for finding station: {}ms",
-        start_time.elapsed().as_millis()
-    );
+    eprintln!("Time for finding station: {}ms", time.elapsed().as_millis());
     eprintln!("# of stations: {}", stations.len());
 
     // グラフを構築
     // MST なので next_pos は一意だがまあ楽だし...
     // let mut cost = 0;
-    let mut graph = vec![Vec::new(); stations.len()];
+    // let mut graph = vec![Vec::new(); stations.len()];
     let mut target_grid = vec![vec!['.'; N]; N];
     // let mut dist = vec![vec![INF; stations.len()]; stations.len()];
     // let mut next_pos = vec![vec![!0; stations.len()]; stations.len()];
     {
-        let edges = {
+        let mut edges = {
             let mut res = Vec::new();
             for i in 0..stations.len() {
                 for j in i + 1..stations.len() {
@@ -270,74 +267,102 @@ fn main() {
             res
         };
 
-        let mut d = ac_library::Dsu::new(stations.len());
-        let mut edges_tobeused = Vec::new();
-        let idstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let mut id = 0;
-        for (dst, (i, j)) in edges {
-            if d.same(i, j) {
-                continue;
+        let eq_range = {
+            let mut res = Vec::new();
+            let mut i = 0;
+            while i < edges.len() {
+                let mut j = i;
+                while j < edges.len() && edges[j].0 == edges[i].0 {
+                    j += 1;
+                }
+                res.push((i, j));
+                i = j;
+            }
+            res
+        };
+
+        // 山登り
+        let mut best_score = INF;
+        while time.elapsed().as_millis() < 1500 {
+            for (l, r) in &eq_range {
+                edges[*l..*r].shuffle(&mut rng);
             }
 
-            // BFS
-            let mut grid_dist = vec![vec![INF; N]; N];
-            let mut que = collections::VecDeque::new();
-            que.push_back(stations[i].pos);
-            grid_dist[stations[i].pos.x][stations[i].pos.y] = 0;
-            while !que.is_empty() {
-                let p = que.pop_front().unwrap();
-                for &q in &[p.left(), p.right(), p.up(), p.down()] {
-                    if !q.in_range()
-                        || grid_dist[q.x][q.y] != INF
-                        || (target_grid[q.x][q.y] != '.' && target_grid[q.x][q.y] != '#')
-                    {
+            let mut cnt = 0;
+            let inner_time = Instant::now();
+            while inner_time.elapsed().as_millis() < 200 {
+                cnt += 1;
+                let mut cur = vec![vec!['.'; N]; N];
+                let mut score = 0;
+                let mut d = ac_library::Dsu::new(stations.len());
+                let idstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                let mut id = 0;
+                for (_dst, (i, j)) in &edges {
+                    if d.same(*i, *j) {
                         continue;
                     }
-                    grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
-                    que.push_back(q);
-                }
-            }
-            if grid_dist[stations[j].pos.x][stations[j].pos.y] == INF {
-                continue;
-            }
-            let mut now_pos = stations[j].pos;
-            while now_pos != stations[i].pos {
-                let mut next_pos = now_pos;
-                for &q in &[
-                    now_pos.left(),
-                    now_pos.right(),
-                    now_pos.up(),
-                    now_pos.down(),
-                ] {
-                    if !q.in_range() {
+
+                    // BFS
+                    let mut grid_dist = vec![vec![INF; N]; N];
+                    let mut que = collections::VecDeque::new();
+                    que.push_back(stations[*i].pos);
+                    grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
+                    while !que.is_empty() {
+                        let p = que.pop_front().unwrap();
+                        for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                            if !q.in_range()
+                                || grid_dist[q.x][q.y] != INF
+                                || (cur[q.x][q.y] != '.' && cur[q.x][q.y] != '#')
+                            {
+                                continue;
+                            }
+                            grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+                            que.push_back(q);
+                        }
+                    }
+                    if grid_dist[stations[*j].pos.x][stations[*j].pos.y] == INF {
                         continue;
                     }
-                    if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
-                        next_pos = q;
-                        break;
+                    score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
+                    let mut now_pos = stations[*j].pos;
+                    while now_pos != stations[*i].pos {
+                        let mut next_pos = now_pos;
+                        let mut cand = vec![
+                            now_pos.left(),
+                            now_pos.right(),
+                            now_pos.up(),
+                            now_pos.down(),
+                        ];
+                        cand.shuffle(&mut rng);
+                        for &q in &cand {
+                            if !q.in_range() {
+                                continue;
+                            }
+                            if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+                                next_pos = q;
+                            }
+                        }
+                        assert_ne!(next_pos, now_pos);
+                        cur[now_pos.x][now_pos.y] = idstr.chars().nth(id).unwrap();
+                        now_pos = next_pos;
                     }
+                    cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
+                    cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
+
+                    d.merge(*i, *j);
+
+                    id += 1;
                 }
-                assert_ne!(next_pos, now_pos);
-                target_grid[now_pos.x][now_pos.y] = idstr.chars().nth(id).unwrap();
-                now_pos = next_pos;
+                if score < best_score {
+                    best_score = score;
+                    target_grid = cur;
+                }
             }
-            target_grid[stations[i].pos.x][stations[i].pos.y] = '#';
-            target_grid[stations[j].pos.x][stations[j].pos.y] = '#';
-
-            d.merge(i, j);
-            graph[i].push(j);
-            graph[j].push(i);
-            edges_tobeused.push((dst, (i, j)));
-
-            id += 1;
+            eprintln!("cnt: {}", cnt);
         }
-        assert_eq!(edges_tobeused.len(), stations.len() - 1);
     }
 
-    eprintln!(
-        "Time for building graph: {}ms",
-        start_time.elapsed().as_millis()
-    );
+    eprintln!("Time for building graph: {}ms", time.elapsed().as_millis());
     eprintln!("Target Grid:");
     for i in 0..N {
         for j in 0..N {
