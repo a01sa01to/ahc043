@@ -1,10 +1,11 @@
 use proconio::input;
-use std::{cmp, time::Instant};
+use std::{cmp, collections, time::Instant};
 
 const COST_STATION: u32 = 5000;
 const COST_RAIL: u32 = 100;
 const N: usize = 50;
 const T: usize = 800;
+const INF: u32 = 10u32.pow(9);
 
 enum RailType {
     LR = 1,
@@ -15,7 +16,7 @@ enum RailType {
     RD = 6,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Point {
     x: usize,
     y: usize,
@@ -23,6 +24,27 @@ struct Point {
 impl Point {
     fn new(x: usize, y: usize) -> Self {
         Self { x, y }
+    }
+    fn left(&self) -> Self {
+        if self.y == 0 {
+            return Self::new(self.x, N);
+        }
+        Self::new(self.x, self.y - 1)
+    }
+    fn right(&self) -> Self {
+        Self::new(self.x, self.y + 1)
+    }
+    fn up(&self) -> Self {
+        if self.x == 0 {
+            return Self::new(N, self.y);
+        }
+        Self::new(self.x - 1, self.y)
+    }
+    fn down(&self) -> Self {
+        Self::new(self.x + 1, self.y)
+    }
+    fn in_range(&self) -> bool {
+        self.x < N && self.y < N
     }
 }
 
@@ -155,7 +177,7 @@ fn main() {
                 }
             }
             Station::new(Point::new(x, y), num_new_users, num_known_users)
-        };
+        }
 
         let mut pq = Vec::new();
         for x in 0..N {
@@ -218,6 +240,91 @@ fn main() {
         start_time.elapsed().as_millis()
     );
     eprintln!("# of stations: {}", stations.len());
+
+    // グラフを構築
+    // MST なので next_pos は一意だがまあ楽だし...
+    // let mut cost = 0;
+    let mut graph = vec![Vec::new(); stations.len()];
+    let mut target_grid = vec![vec!['.'; N]; N];
+    // let mut dist = vec![vec![INF; stations.len()]; stations.len()];
+    // let mut next_pos = vec![vec![!0; stations.len()]; stations.len()];
+    {
+        let mut edges = Vec::new();
+        for i in 0..stations.len() {
+            for j in i + 1..stations.len() {
+                let d = manhattan_distance(&stations[i].pos, &stations[j].pos);
+                edges.push((d, (i, j)));
+            }
+        }
+        edges.sort();
+        let mut d = ac_library::Dsu::new(stations.len());
+        let mut edges_tobeused = Vec::new();
+        for (dst, (i, j)) in edges {
+            if d.same(i, j) {
+                continue;
+            }
+
+            // BFS
+            let mut grid_dist = vec![vec![INF; N]; N];
+            let mut que = collections::VecDeque::new();
+            que.push_back(stations[i].pos);
+            grid_dist[stations[i].pos.x][stations[i].pos.y] = 0;
+            while !que.is_empty() {
+                let p = que.pop_front().unwrap();
+                for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                    if !q.in_range() || grid_dist[q.x][q.y] != INF || target_grid[q.x][q.y] == '#' {
+                        continue;
+                    }
+                    grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+                    que.push_back(q);
+                }
+            }
+            if grid_dist[stations[j].pos.x][stations[j].pos.y] == INF {
+                continue;
+            }
+            let mut now_pos = stations[j].pos;
+            while now_pos != stations[i].pos {
+                let mut next_pos = now_pos;
+                for &q in &[
+                    now_pos.left(),
+                    now_pos.right(),
+                    now_pos.up(),
+                    now_pos.down(),
+                ] {
+                    if !q.in_range() {
+                        continue;
+                    }
+                    if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+                        next_pos = q;
+                        break;
+                    }
+                }
+                assert_ne!(next_pos, now_pos);
+                target_grid[now_pos.x][now_pos.y] = '#';
+                now_pos = next_pos;
+            }
+            target_grid[stations[i].pos.x][stations[i].pos.y] = 'S';
+            target_grid[stations[j].pos.x][stations[j].pos.y] = 'S';
+
+            d.merge(i, j);
+            graph[i].push(j);
+            graph[j].push(i);
+            edges_tobeused.push((dst, (i, j)));
+        }
+        assert_eq!(edges_tobeused.len(), stations.len() - 1);
+    }
+
+    eprintln!(
+        "Time for building graph: {}ms",
+        start_time.elapsed().as_millis()
+    );
+    eprintln!("Target Grid:");
+    for i in 0..N {
+        for j in 0..N {
+            eprint!("{}", target_grid[i][j]);
+        }
+        eprintln!();
+    }
 
     for s in &stations {
         println!("0 {} {}", s.pos.x, s.pos.y);
