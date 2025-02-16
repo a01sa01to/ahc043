@@ -1,7 +1,7 @@
 extern crate rand;
 use proconio::input;
 use rand::{seq::SliceRandom, Rng};
-use std::{cmp, collections, time::Instant};
+use std::{cmp, collections, mem::swap, time::Instant};
 
 const COST_STATION: u32 = 5000;
 const COST_RAIL: u32 = 100;
@@ -286,6 +286,11 @@ fn main() {
         while time.elapsed().as_millis() < 1500 {
             for (l, r) in &eq_range {
                 edges[*l..*r].shuffle(&mut rng);
+            }
+            for _ in 0..10 {
+                let i = rng.gen_range(0..edges.len() - 1);
+                let (left, right) = edges.split_at_mut(i + 1);
+                swap(&mut left[i], &mut right[0]);
             }
 
             let mut cnt = 0;
