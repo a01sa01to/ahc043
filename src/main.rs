@@ -1,4 +1,6 @@
+extern crate rand;
 use proconio::input;
+use rand::Rng;
 use std::{cmp, collections, time::Instant};
 
 const COST_STATION: u32 = 5000;
@@ -109,6 +111,7 @@ fn in_range(x: i32, y: i32) -> bool {
 
 fn main() {
     let start_time = Instant::now();
+    let mut rng = rand::thread_rng();
 
     // Input
     input! {
@@ -119,23 +122,28 @@ fn main() {
     };
     assert_eq!(_n, N);
     assert_eq!(_t, T);
-    let mut people = Vec::new();
-    for _ in 0..m {
-        input! {
-            x1: usize,
-            y1: usize,
-            x2: usize,
-            y2: usize,
-        };
-        people.push(Person::new(Point::new(x1, y1), Point::new(x2, y2)));
-    }
-    let people = people;
+    let people = {
+        let mut res = Vec::new();
+        for _ in 0..m {
+            input! {
+                x1: usize,
+                y1: usize,
+                x2: usize,
+                y2: usize,
+            };
+            res.push(Person::new(Point::new(x1, y1), Point::new(x2, y2)));
+        }
+        res
+    };
 
-    let mut grid_to_peopleidx: Vec<Vec<Vec<usize>>> = vec![vec![Vec::new(); N]; N];
-    for i in 0..m {
-        grid_to_peopleidx[people[i].home.x][people[i].home.y].push(i);
-        grid_to_peopleidx[people[i].work.x][people[i].work.y].push(i);
-    }
+    let grid_to_peopleidx = {
+        let mut res = vec![vec![Vec::new(); N]; N];
+        for i in 0..m {
+            res[people[i].home.x][people[i].home.y].push(i);
+            res[people[i].work.x][people[i].work.y].push(i);
+        }
+        res
+    };
 
     // 駅の場所を決める
     let mut stations = Vec::new();
@@ -234,6 +242,7 @@ fn main() {
             pq.reverse();
         }
     }
+    let stations = stations;
 
     eprintln!(
         "Time for finding station: {}ms",
@@ -249,16 +258,22 @@ fn main() {
     // let mut dist = vec![vec![INF; stations.len()]; stations.len()];
     // let mut next_pos = vec![vec![!0; stations.len()]; stations.len()];
     {
-        let mut edges = Vec::new();
-        for i in 0..stations.len() {
-            for j in i + 1..stations.len() {
-                let d = manhattan_distance(&stations[i].pos, &stations[j].pos);
-                edges.push((d, (i, j)));
+        let edges = {
+            let mut res = Vec::new();
+            for i in 0..stations.len() {
+                for j in i + 1..stations.len() {
+                    let d = manhattan_distance(&stations[i].pos, &stations[j].pos);
+                    res.push((d, (i, j)));
+                }
             }
-        }
-        edges.sort();
+            res.sort();
+            res
+        };
+
         let mut d = ac_library::Dsu::new(stations.len());
         let mut edges_tobeused = Vec::new();
+        let idstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let mut id = 0;
         for (dst, (i, j)) in edges {
             if d.same(i, j) {
                 continue;
@@ -272,7 +287,10 @@ fn main() {
             while !que.is_empty() {
                 let p = que.pop_front().unwrap();
                 for &q in &[p.left(), p.right(), p.up(), p.down()] {
-                    if !q.in_range() || grid_dist[q.x][q.y] != INF || target_grid[q.x][q.y] == '#' {
+                    if !q.in_range()
+                        || grid_dist[q.x][q.y] != INF
+                        || (target_grid[q.x][q.y] != '.' && target_grid[q.x][q.y] != '#')
+                    {
                         continue;
                     }
                     grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
@@ -300,16 +318,18 @@ fn main() {
                     }
                 }
                 assert_ne!(next_pos, now_pos);
-                target_grid[now_pos.x][now_pos.y] = '#';
+                target_grid[now_pos.x][now_pos.y] = idstr.chars().nth(id).unwrap();
                 now_pos = next_pos;
             }
-            target_grid[stations[i].pos.x][stations[i].pos.y] = 'S';
-            target_grid[stations[j].pos.x][stations[j].pos.y] = 'S';
+            target_grid[stations[i].pos.x][stations[i].pos.y] = '#';
+            target_grid[stations[j].pos.x][stations[j].pos.y] = '#';
 
             d.merge(i, j);
             graph[i].push(j);
             graph[j].push(i);
             edges_tobeused.push((dst, (i, j)));
+
+            id += 1;
         }
         assert_eq!(edges_tobeused.len(), stations.len() - 1);
     }
