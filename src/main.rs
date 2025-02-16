@@ -295,14 +295,18 @@ fn main() {
 
             let mut cnt = 0;
             let inner_time = Instant::now();
-            while inner_time.elapsed().as_millis() < 200 {
+            while inner_time.elapsed().as_millis() < 100 {
                 cnt += 1;
                 let mut cur = vec![vec!['.'; N]; N];
                 let mut score = 0;
                 let mut d = ac_library::Dsu::new(stations.len());
                 let idstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
                 let mut id = 0;
+                let mut groups_cnt = stations.len();
                 for (_dst, (i, j)) in &edges {
+                    if groups_cnt == 1 {
+                        break;
+                    }
                     if d.same(*i, *j) {
                         continue;
                     }
@@ -314,6 +318,9 @@ fn main() {
                     grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
                     while !que.is_empty() {
                         let p = que.pop_front().unwrap();
+                        if p == stations[*j].pos {
+                            break;
+                        }
                         for &q in &[p.left(), p.right(), p.up(), p.down()] {
                             if !q.in_range()
                                 || grid_dist[q.x][q.y] != INF
@@ -355,6 +362,7 @@ fn main() {
                     cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
 
                     d.merge(*i, *j);
+                    groups_cnt -= 1;
 
                     id += 1;
                 }
