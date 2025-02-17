@@ -23,6 +23,8 @@ enum GridState {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum RailType {
+    None = -1,
+    Station = 0,
     LR = 1,
     UD = 2,
     LD = 3,
@@ -33,6 +35,8 @@ enum RailType {
 impl fmt::Display for RailType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            RailType::None => unreachable!(),
+            RailType::Station => write!(f, "0"),
             RailType::LR => write!(f, "1"),
             RailType::UD => write!(f, "2"),
             RailType::LD => write!(f, "3"),
@@ -274,6 +278,19 @@ fn find_path(
         now = next_pos[to_sta][now.x][now.y];
     }
     res
+}
+
+fn output(ans: &Vec<((RailType, Point), (usize, usize))>) {
+    for i in 0..ans.len() {
+        let ((rail, pos), (money, income)) = ans[i];
+        println!("# Turn: {}", i + 1);
+        println!("# Money: {} Income: {}", money, income);
+        if rail == RailType::None {
+            println!("-1");
+        } else {
+            println!("{} {} {}", rail, pos.x, pos.y);
+        }
+    }
 }
 
 fn main() {
@@ -634,6 +651,9 @@ fn main() {
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
     let mut built_station = collections::HashSet::new();
 
+    // (output, ターン終了時の (money, income))
+    let mut ans = vec![((RailType::None, Point::new(!0, !0)), (0, 0)); T];
+
     for i in 0..m {
         nconnected_peopleidx.insert(i);
     }
@@ -664,25 +684,16 @@ fn main() {
                 &pos2sta,
             );
 
-            println!("# sta {} {}", i, s.pos);
-            println!(
-                "# {} - {} + {} = {}",
-                k,
-                COST_STATION,
-                income,
-                k - COST_STATION + income
-            );
-            println!("0 {} {}", s.pos.x, s.pos.y);
-
             k -= COST_STATION;
             k += income;
+
+            ans[turn - 1] = ((RailType::Station, s.pos), (k, income));
             continue;
         }
 
         if !station_todo.is_empty() {
-            println!("# {} - 0 + {} = {}", k, income, k + income);
-            println!("-1");
             k += income;
+            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
             continue;
         }
 
@@ -724,24 +735,16 @@ fn main() {
                 &pos2sta,
             );
 
-            println!(
-                "# {} - {} + {} = {}",
-                k,
-                COST_RAIL,
-                income,
-                k - COST_RAIL + income
-            );
-            println!("{} {} {}", t, i, j);
-
             k -= COST_RAIL;
             k += income;
+
+            ans[turn - 1] = ((t, p), (k, income));
             continue;
         }
 
         if !rail_todo.is_empty() || !station_todo.is_empty() {
-            println!("# {} - 0 + {} = {}", k, income, k + income);
-            println!("-1");
             k += income;
+            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
             continue;
         }
 
@@ -812,16 +815,8 @@ fn main() {
         turn -= 1; // 上のほうの処理に任せるため
 
         let (sta, path) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
-        println!(
-            "# sta {}{} -> sta {}{}",
-            i, stations[i].pos, j, stations[j].pos,
-        );
-        println!("# sta: {:?}", sta);
-        println!("# path: {:?}", path);
         let sipos = stations[i].pos;
         let sjpos = stations[j].pos;
-        println!("# gridstate i: {:?}", grid_state[sipos.x][sipos.y]);
-        println!("# gridstate j: {:?}", grid_state[sjpos.x][sjpos.y]);
         if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
             station_todo.push_back(i);
         }
@@ -881,4 +876,5 @@ fn main() {
             }
         }
     }
+    output(&ans);
 }
