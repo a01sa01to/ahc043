@@ -564,6 +564,7 @@ fn main() {
     let mut station_todo = collections::VecDeque::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
+    let mut built_station = collections::HashSet::new();
 
     for i in 0..m {
         nconnected_peopleidx.insert(i);
@@ -577,6 +578,7 @@ fn main() {
             let s: &Station = &stations[i];
 
             grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
+            built_station.insert(i);
             for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
                 if !q.in_range() {
                     continue;
@@ -678,7 +680,26 @@ fn main() {
         let mut best = (-(INF as i32), !0, !0);
         for i in 0..stations.len() {
             for j in i + 1..stations.len() {
-                let mut score = 0;
+                if built_station.contains(&i) && built_station.contains(&j) {
+                    continue;
+                }
+
+                let mut profit = 0;
+
+                let (cost, need_build_turn) = {
+                    let (addsta, addpath) =
+                        find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+                    (
+                        (addsta.len() * COST_STATION + addpath.len() * COST_RAIL) as i32,
+                        (addsta.len() + addpath.len()) as i32,
+                    )
+                };
+                let need_wait_turn = if income == 0 {
+                    0
+                } else {
+                    (cost as i32 - k as i32).max(0) / income as i32
+                };
+
                 for &idx in nconnected_peopleidx.iter() {
                     let p = &people[idx];
                     for dx1 in -2i32..=2i32 {
@@ -701,7 +722,7 @@ fn main() {
                                         if (p1 == stations[i].pos && p2 == stations[j].pos)
                                             || (p1 == stations[j].pos && p2 == stations[i].pos)
                                         {
-                                            score += p.dist() as i32;
+                                            profit += p.dist() as i32;
                                         }
                                     }
                                 }
@@ -709,6 +730,7 @@ fn main() {
                         }
                     }
                 }
+                let score = profit * ((T - turn) as i32 - need_build_turn - need_wait_turn) - cost;
                 // turn 1 なら制約付き
                 if score > best.0 && (turn != 1 || k >= dist[i][j] * COST_RAIL + 2 * COST_STATION) {
                     best = (score, i, j);
