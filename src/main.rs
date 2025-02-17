@@ -748,7 +748,7 @@ fn main() {
             continue;
         }
 
-        let mut best = (-(INF as i32), !0, !0);
+        let mut best = (0, !0, !0);
         for i in 0..stations.len() {
             for j in i + 1..stations.len() {
                 if built_station.contains(&i) && built_station.contains(&j) {
@@ -808,7 +808,12 @@ fn main() {
                 }
             }
         }
-        // どうせ落ちるケースありそう
+        // どうせ収益が減るならやらない
+        if best.0 == 0 {
+            k += income;
+            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
+            continue;
+        }
         assert_ne!(best.1, !0);
 
         let (_, i, j) = best;
