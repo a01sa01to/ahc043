@@ -248,12 +248,7 @@ fn main() {
     eprintln!("# of stations: {}", stations.len());
 
     // グラフを構築
-    // MST なので next_pos は一意だがまあ楽だし...
-    // let mut cost = 0;
-    // let mut graph = vec![Vec::new(); stations.len()];
     let mut target_grid = vec![vec!['.'; N]; N];
-    // let mut dist = vec![vec![INF; stations.len()]; stations.len()];
-    // let mut next_pos = vec![vec![!0; stations.len()]; stations.len()];
     {
         let mut edges = {
             let mut res = Vec::new();
@@ -373,6 +368,7 @@ fn main() {
             }
             eprintln!("cnt: {}", cnt);
         }
+        eprintln!("Score: {}", best_score);
     }
 
     eprintln!("Time for building graph: {}ms", time.elapsed().as_millis());
@@ -382,6 +378,43 @@ fn main() {
             eprint!("{}", target_grid[i][j]);
         }
         eprintln!();
+    }
+
+    // target grid から dist と next_pos を作る
+    let mut dist = vec![vec![INF; stations.len()]; stations.len()];
+    let mut next_pos = vec![vec![vec![Point::new(!0, !0); stations.len()]; N]; N];
+    {
+        let mut pos2sta = vec![vec![!0; N]; N];
+        for (i, s) in stations.iter().enumerate() {
+            pos2sta[s.pos.x][s.pos.y] = i;
+        }
+        for (i, s) in stations.iter().enumerate() {
+            dist[i][i] = 0;
+            next_pos[i][s.pos.x][s.pos.y] = s.pos;
+
+            let mut grid_dist = vec![vec![INF; N]; N];
+            let mut que = collections::VecDeque::new();
+            que.push_back(s.pos);
+            while !que.is_empty() {
+                let p = que.pop_front().unwrap();
+                for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                    if !q.in_range() || target_grid[q.x][q.y] == '.' {
+                        continue;
+                    }
+                    if grid_dist[q.x][q.y] == INF {
+                        grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+                        // 木になってるので、次の位置は一意に定まる
+                        next_pos[i][q.x][q.y] = p;
+                        que.push_back(q);
+                        if target_grid[q.x][q.y] == '#' {
+                            assert_ne!(pos2sta[q.x][q.y], !0);
+                            let j = pos2sta[q.x][q.y];
+                            dist[i][j] = grid_dist[q.x][q.y];
+                        }
+                    }
+                }
+            }
+        }
     }
 
     for s in &stations {
