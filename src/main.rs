@@ -9,6 +9,18 @@ const N: usize = 50;
 const T: usize = 800;
 const INF: usize = 10usize.pow(9);
 
+const MASK_L: usize = 1;
+const MASK_R: usize = 2;
+const MASK_U: usize = 4;
+const MASK_D: usize = 8;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GridState {
+    Empty,
+    Station(usize),
+    Rail(RailType),
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RailType {
     LR = 1,
@@ -401,12 +413,15 @@ fn main() {
 
     // target grid から dist と next_pos を作る
     let mut dist = vec![vec![INF; stations.len()]; stations.len()];
-    let mut next_pos = vec![vec![vec![Point::new(!0, !0); stations.len()]; N]; N];
-    {
-        let mut pos2sta = vec![vec![!0; N]; N];
+    let mut next_pos = vec![vec![vec![Point::new(!0, !0); N]; N]; stations.len()];
+    let pos2sta = {
+        let mut res = vec![vec![!0; N]; N];
         for (i, s) in stations.iter().enumerate() {
-            pos2sta[s.pos.x][s.pos.y] = i;
+            res[s.pos.x][s.pos.y] = i;
         }
+        res
+    };
+    {
         for (i, s) in stations.iter().enumerate() {
             dist[i][i] = 0;
             next_pos[i][s.pos.x][s.pos.y] = s.pos;
@@ -443,6 +458,7 @@ fn main() {
     let mut rail_todo = collections::VecDeque::new();
     let mut station_todo = collections::VecDeque::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
+    let mut grid_state = vec![vec![GridState::Empty; N]; N];
 
     for i in 0..m {
         nconnected_peopleidx.insert(i);
@@ -459,7 +475,7 @@ fn main() {
             if done.contains(&i) {
                 continue;
             }
-            let p: &Person = &people[i];
+            let p = &people[i];
             for dx1 in -2i32..=2i32 {
                 for dy1 in -2i32..=2i32 {
                     for dx2 in -2i32..=2i32 {
@@ -492,6 +508,33 @@ fn main() {
         }
     }
 
+    fn find_path(
+        a: Point,
+        to_sta: usize,
+        next_pos: &Vec<Vec<Vec<Point>>>,
+        grid_state: &Vec<Vec<GridState>>,
+        pos2sta: &Vec<Vec<usize>>,
+    ) -> (Vec<usize>, Vec<Point>) {
+        let mut res = (Vec::new(), Vec::new());
+        let mut now = a;
+        while now != next_pos[to_sta][now.x][now.y] {
+            if now == a {
+                // どうせ駅
+                // Do nothing
+            } else if grid_state[now.x][now.y] == GridState::Empty {
+                res.1.push(now);
+            } else if let GridState::Rail(_t) = grid_state[now.x][now.y] {
+                res.0.push(pos2sta[now.x][now.y]);
+            } else {
+                // Station
+                // Do nothing
+            }
+
+            now = next_pos[to_sta][now.x][now.y];
+        }
+        res
+    }
+
     while turn < T {
         turn += 1;
 
@@ -499,6 +542,7 @@ fn main() {
             let i = station_todo.pop_front().unwrap();
             let s: &Station = &stations[i];
             println!("0 {} {}", s.pos.x, s.pos.y);
+            grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
 
             for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
                 if !q.in_range() {
@@ -522,6 +566,7 @@ fn main() {
             let (t, i, j) = rail_todo.pop_front().unwrap();
             let p = Point::new(i, j);
             println!("{} {} {}", t, i, j);
+            grid_state[i][j] = GridState::Rail(t);
 
             let mut cand = Vec::new();
             if t == RailType::LD || t == RailType::LR || t == RailType::LU {
@@ -562,9 +607,100 @@ fn main() {
             continue;
         }
 
+        // turn 1 ならつなげられるうち、最も収入の高くなるものを選ぶ
+        if turn == 1 {
+            let mut best = (-(INF as i32), !0, !0);
+            for i in 0..stations.len() {
+                for j in i + 1..stations.len() {
+                    let mut score = -((dist[i][j] * COST_RAIL) as i32);
+                    for &idx in nconnected_peopleidx.iter() {
+                        let p = &people[idx];
+                        for dx1 in -2i32..=2i32 {
+                            for dy1 in -2i32..=2i32 {
+                                for dx2 in -2i32..=2i32 {
+                                    for dy2 in -2i32..=2i32 {
+                                        if manhattan_distance_dxdy(dx1, dy1) <= 2
+                                            && manhattan_distance_dxdy(dx2, dy2) <= 2
+                                            && in_range(
+                                                p.home.x as i32 + dx1,
+                                                p.home.y as i32 + dy1,
+                                            )
+                                            && in_range(
+                                                p.work.x as i32 + dx2,
+                                                p.work.y as i32 + dy2,
+                                            )
+                                        {
+                                            let p1 = Point::new(
+                                                (p.home.x as i32 + dx1) as usize,
+                                                (p.home.y as i32 + dy1) as usize,
+                                            );
+                                            let p2 = Point::new(
+                                                (p.work.x as i32 + dx2) as usize,
+                                                (p.work.y as i32 + dy2) as usize,
+                                            );
+                                            if (p1 == stations[i].pos && p2 == stations[j].pos)
+                                                || (p1 == stations[j].pos && p2 == stations[i].pos)
+                                            {
+                                                score += p.dist() as i32;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if score > best.0 && k >= dist[i][j] * COST_RAIL + 2 * COST_STATION {
+                        best = (score, i, j);
+                    }
+                }
+            }
+            // どうせ落ちるケースありそう
+            assert_ne!(best.1, !0);
+
+            let (_, i, j) = best;
+            turn -= 1; // 上のほうの処理に任せるため
+
+            let (sta, path) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+            for &s in &sta {
+                station_todo.push_back(s);
+            }
+            for p in path.iter() {
+                let mut mask = 0usize;
+                for &(q, msk) in &[
+                    (p.left(), MASK_L),
+                    (p.right(), MASK_R),
+                    (p.up(), MASK_U),
+                    (p.down(), MASK_D),
+                ] {
+                    if q == next_pos[i][p.x][p.y] || q == next_pos[j][p.x][p.y] {
+                        mask |= msk;
+                    }
+                }
+
+                assert_eq!(mask.count_ones(), 2);
+
+                if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
+                    rail_todo.push_back((RailType::LR, p.x, p.y));
+                } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::UD, p.x, p.y));
+                } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::LD, p.x, p.y));
+                } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
+                    rail_todo.push_back((RailType::LU, p.x, p.y));
+                } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
+                    rail_todo.push_back((RailType::RU, p.x, p.y));
+                } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::RD, p.x, p.y));
+                } else {
+                    unreachable!();
+                }
+            }
+            continue;
+        }
+
+        // そうでないなら収入高くなるものを選ぶ
+
         // TODO: impl
-        // 型付けのために push
-        rail_todo.push_back((RailType::LR, 0usize, 1usize));
-        station_todo.push_back(0usize);
+        println!("-1");
     }
 }
