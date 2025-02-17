@@ -441,7 +441,11 @@ fn main() {
                     if !q.in_range() || target_grid[q.x][q.y] == '.' {
                         continue;
                     }
-                    if grid_dist[q.x][q.y] == INF {
+                    if grid_dist[q.x][q.y] == INF
+                        && (target_grid[p.x][p.y] == '#'
+                            || target_grid[q.x][q.y] == '#'
+                            || target_grid[q.x][q.y] == target_grid[p.x][p.y])
+                    {
                         grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
                         // 木になってるので、次の位置は一意に定まる
                         next_pos[i][q.x][q.y] = p;
@@ -475,6 +479,8 @@ fn main() {
         nconnected_peopleidx: &mut collections::HashSet<usize>,
         people: &Vec<Person>,
         grid_dsu: &mut ac_library::Dsu,
+        grid_state: &Vec<Vec<GridState>>,
+        pos2sta: &Vec<Vec<usize>>,
     ) {
         let mut done = collections::HashSet::new();
         for &i in nconnected_peopleidx.iter() {
@@ -499,7 +505,12 @@ fn main() {
                                     (p.work.x as i32 + dx2) as usize,
                                     (p.work.y as i32 + dy2) as usize,
                                 );
-                                if grid_dsu.same(p1.to_idx(), p2.to_idx()) {
+                                if grid_dsu.same(p1.to_idx(), p2.to_idx())
+                                    && grid_state[p1.x][p1.y]
+                                        == GridState::Station(pos2sta[p1.x][p1.y])
+                                    && grid_state[p2.x][p2.y]
+                                        == GridState::Station(pos2sta[p2.x][p2.y])
+                                {
                                     *income += p.dist();
                                     done.insert(i);
                                 }
@@ -547,21 +558,34 @@ fn main() {
         if !station_todo.is_empty() && k >= COST_STATION {
             let i = station_todo.pop_front().unwrap();
             let s: &Station = &stations[i];
-            println!("0 {} {}", s.pos.x, s.pos.y);
-            grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
 
+            grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
             for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
                 if !q.in_range() {
                     continue;
                 }
-                grid_dsu.merge(s.pos.to_idx(), q.to_idx());
+                if grid_state[q.x][q.y] != GridState::Empty {
+                    grid_dsu.merge(s.pos.to_idx(), q.to_idx());
+                }
             }
             update_income(
                 &mut income,
                 &mut nconnected_peopleidx,
                 &people,
                 &mut grid_dsu,
+                &grid_state,
+                &pos2sta,
             );
+
+            println!("# sta {} {}", i, s.pos);
+            println!(
+                "# {} - {} + {} = {}",
+                k,
+                COST_STATION,
+                income,
+                k - COST_STATION + income
+            );
+            println!("0 {} {}", s.pos.x, s.pos.y);
 
             k -= COST_STATION;
             k += income;
@@ -571,36 +595,49 @@ fn main() {
         if !rail_todo.is_empty() && k >= COST_RAIL {
             let (t, i, j) = rail_todo.pop_front().unwrap();
             let p = Point::new(i, j);
-            println!("{} {} {}", t, i, j);
-            grid_state[i][j] = GridState::Rail(t);
 
-            let mut cand = Vec::new();
+            grid_state[i][j] = GridState::Rail(t);
             if t == RailType::LD || t == RailType::LR || t == RailType::LU {
                 assert!(p.left().in_range());
-                cand.push(p.left());
+                if grid_state[p.left().x][p.left().y] != GridState::Empty {
+                    grid_dsu.merge(p.to_idx(), p.left().to_idx());
+                }
             }
             if t == RailType::RD || t == RailType::LR || t == RailType::RU {
                 assert!(p.right().in_range());
-                cand.push(p.right());
+                if grid_state[p.right().x][p.right().y] != GridState::Empty {
+                    grid_dsu.merge(p.to_idx(), p.right().to_idx());
+                }
             }
             if t == RailType::LU || t == RailType::RU || t == RailType::UD {
                 assert!(p.up().in_range());
-                cand.push(p.up());
+                if grid_state[p.up().x][p.up().y] != GridState::Empty {
+                    grid_dsu.merge(p.to_idx(), p.up().to_idx());
+                }
             }
             if t == RailType::LD || t == RailType::RD || t == RailType::UD {
                 assert!(p.down().in_range());
-                cand.push(p.down());
-            }
-
-            for &q in &cand {
-                grid_dsu.merge(p.to_idx(), q.to_idx());
+                if grid_state[p.down().x][p.down().y] != GridState::Empty {
+                    grid_dsu.merge(p.to_idx(), p.down().to_idx());
+                }
             }
             update_income(
                 &mut income,
                 &mut nconnected_peopleidx,
                 &people,
                 &mut grid_dsu,
+                &grid_state,
+                &pos2sta,
             );
+
+            println!(
+                "# {} - {} + {} = {}",
+                k,
+                COST_RAIL,
+                income,
+                k - COST_RAIL + income
+            );
+            println!("{} {} {}", t, i, j);
 
             k -= COST_RAIL;
             k += income;
@@ -608,6 +645,7 @@ fn main() {
         }
 
         if !rail_todo.is_empty() || !station_todo.is_empty() {
+            println!("# {} - 0 + {} = {}", k, income, k + income);
             println!("-1");
             k += income;
             continue;
