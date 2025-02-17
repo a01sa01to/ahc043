@@ -429,6 +429,7 @@ fn main() {
             let mut grid_dist = vec![vec![INF; N]; N];
             let mut que = collections::VecDeque::new();
             que.push_back(s.pos);
+            grid_dist[s.pos.x][s.pos.y] = 0;
             while !que.is_empty() {
                 let p = que.pop_front().unwrap();
                 for &q in &[p.left(), p.right(), p.up(), p.down()] {
