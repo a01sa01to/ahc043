@@ -77,6 +77,11 @@ impl Point {
         self.x * N + self.y
     }
 }
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
 
 fn manhattan_distance(p1: &Point, p2: &Point) -> u32 {
     ((p1.x as i32 - p2.x as i32).abs() + (p1.y as i32 - p2.y as i32).abs()) as u32
@@ -613,7 +618,7 @@ fn main() {
             let mut best = (-(INF as i32), !0, !0);
             for i in 0..stations.len() {
                 for j in i + 1..stations.len() {
-                    let mut score = -((dist[i][j] * COST_RAIL) as i32);
+                    let mut score = 0;
                     for &idx in nconnected_peopleidx.iter() {
                         let p = &people[idx];
                         for dx1 in -2i32..=2i32 {
@@ -662,9 +667,14 @@ fn main() {
             turn -= 1; // 上のほうの処理に任せるため
 
             let (sta, path) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
-            for &s in &sta {
-                station_todo.push_back(s);
-            }
+            println!(
+                "# sta {}{} -> sta {}{}",
+                i, stations[i].pos, j, stations[j].pos,
+            );
+            println!("# sta: {:?}", sta);
+            println!("# path: {:?}", path);
+            station_todo.push_back(i);
+            station_todo.push_back(j);
             for p in path.iter() {
                 let mut mask = 0usize;
                 for &(q, msk) in &[
