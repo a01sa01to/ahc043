@@ -751,10 +751,6 @@ fn main() {
         let mut best = (0, !0, !0);
         for i in 0..stations.len() {
             for j in i + 1..stations.len() {
-                if built_station.contains(&i) && built_station.contains(&j) {
-                    continue;
-                }
-
                 let mut profit = 0;
 
                 let (cost, need_build_turn) = {
