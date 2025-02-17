@@ -1,5 +1,5 @@
 extern crate rand;
-use proconio::input;
+use proconio::{fastout, input};
 use rand::{seq::SliceRandom, Rng};
 use std::{cmp, collections, fmt, mem::swap, time::Instant};
 
@@ -280,6 +280,7 @@ fn find_path(
     res
 }
 
+#[fastout]
 fn output(ans: &Vec<((RailType, Point), (usize, usize))>) {
     for i in 0..ans.len() {
         let ((rail, pos), (money, income)) = ans[i];
