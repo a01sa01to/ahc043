@@ -14,6 +14,22 @@ const MASK_R: usize = 2;
 const MASK_U: usize = 4;
 const MASK_D: usize = 8;
 
+const MANHATTAN_2_LIST: [(i32, i32); 13] = [
+    (-2, 0),
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -2),
+    (0, -1),
+    (0, 0),
+    (0, 1),
+    (0, 2),
+    (1, -1),
+    (1, 0),
+    (1, 1),
+    (2, 0),
+];
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GridState {
     Empty,
@@ -90,9 +106,6 @@ impl fmt::Display for Point {
 fn manhattan_distance(p1: &Point, p2: &Point) -> u32 {
     ((p1.x as i32 - p2.x as i32).abs() + (p1.y as i32 - p2.y as i32).abs()) as u32
 }
-fn manhattan_distance_dxdy(dx: i32, dy: i32) -> u32 {
-    (dx.abs() + dy.abs()) as u32
-}
 
 #[derive(Clone, Copy)]
 struct Person {
@@ -159,26 +172,22 @@ fn get_station(
 ) -> Station {
     let mut num_new_users = 0;
     let mut num_known_users = 0;
-    for dx in -2i32..=2i32 {
-        for dy in -2i32..=2i32 {
-            if manhattan_distance_dxdy(dx, dy) <= 2 {
-                let nx = x as i32 + dx;
-                let ny = y as i32 + dy;
-                if !in_range(nx, ny) {
-                    continue;
-                }
-                let p = Point::new(nx as usize, ny as usize);
-                for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
-                    if used_home[i] && used_work[i] {
-                        continue;
-                    } else if used_home[i] && people[i].work == p {
-                        num_known_users += 1;
-                    } else if used_work[i] && people[i].home == p {
-                        num_known_users += 1;
-                    } else if !used_home[i] && !used_work[i] {
-                        num_new_users += 1;
-                    }
-                }
+    for (dx, dy) in MANHATTAN_2_LIST {
+        let nx = x as i32 + dx;
+        let ny = y as i32 + dy;
+        if !in_range(nx, ny) {
+            continue;
+        }
+        let p = Point::new(nx as usize, ny as usize);
+        for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
+            if used_home[i] && used_work[i] {
+                continue;
+            } else if used_home[i] && people[i].work == p {
+                num_known_users += 1;
+            } else if used_work[i] && people[i].home == p {
+                num_known_users += 1;
+            } else if !used_home[i] && !used_work[i] {
+                num_new_users += 1;
             }
         }
     }
@@ -199,32 +208,26 @@ fn update_income(
             continue;
         }
         let p = &people[i];
-        for dx1 in -2i32..=2i32 {
-            for dy1 in -2i32..=2i32 {
-                for dx2 in -2i32..=2i32 {
-                    for dy2 in -2i32..=2i32 {
-                        if manhattan_distance_dxdy(dx1, dy1) <= 2
-                            && manhattan_distance_dxdy(dx2, dy2) <= 2
-                            && in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
-                            && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
-                        {
-                            let p1 = Point::new(
-                                (p.home.x as i32 + dx1) as usize,
-                                (p.home.y as i32 + dy1) as usize,
-                            );
-                            let p2 = Point::new(
-                                (p.work.x as i32 + dx2) as usize,
-                                (p.work.y as i32 + dy2) as usize,
-                            );
-                            if grid_dsu.same(p1.to_idx(), p2.to_idx())
-                                && grid_state[p1.x][p1.y] == GridState::Station(pos2sta[p1.x][p1.y])
-                                && grid_state[p2.x][p2.y] == GridState::Station(pos2sta[p2.x][p2.y])
-                                && !done.contains(&i)
-                            {
-                                *income += p.dist();
-                                done.insert(i);
-                            }
-                        }
+        for (dx1, dy1) in MANHATTAN_2_LIST {
+            for (dx2, dy2) in MANHATTAN_2_LIST {
+                if in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
+                    && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
+                {
+                    let p1 = Point::new(
+                        (p.home.x as i32 + dx1) as usize,
+                        (p.home.y as i32 + dy1) as usize,
+                    );
+                    let p2 = Point::new(
+                        (p.work.x as i32 + dx2) as usize,
+                        (p.work.y as i32 + dy2) as usize,
+                    );
+                    if grid_dsu.same(p1.to_idx(), p2.to_idx())
+                        && grid_state[p1.x][p1.y] == GridState::Station(pos2sta[p1.x][p1.y])
+                        && grid_state[p2.x][p2.y] == GridState::Station(pos2sta[p2.x][p2.y])
+                        && !done.contains(&i)
+                    {
+                        *income += p.dist();
+                        done.insert(i);
                     }
                 }
             }
@@ -355,24 +358,20 @@ fn main() {
         while !pq.is_empty() {
             let s = pq.pop().unwrap();
             stations.push(s);
-            for dx in -2i32..=2i32 {
-                for dy in -2i32..=2i32 {
-                    if manhattan_distance_dxdy(dx, dy) <= 2 {
-                        let nx = s.pos.x as i32 + dx;
-                        let ny = s.pos.y as i32 + dy;
-                        if !in_range(nx, ny) {
-                            continue;
-                        }
-                        used[nx as usize][ny as usize] = true;
-                        let p = Point::new(nx as usize, ny as usize);
-                        for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
-                            if people[i].home == p {
-                                used_home[i] = true;
-                            }
-                            if people[i].work == p {
-                                used_work[i] = true;
-                            }
-                        }
+            for (dx, dy) in MANHATTAN_2_LIST {
+                let nx = s.pos.x as i32 + dx;
+                let ny = s.pos.y as i32 + dy;
+                if !in_range(nx, ny) {
+                    continue;
+                }
+                used[nx as usize][ny as usize] = true;
+                let p = Point::new(nx as usize, ny as usize);
+                for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
+                    if people[i].home == p {
+                        used_home[i] = true;
+                    }
+                    if people[i].work == p {
+                        used_work[i] = true;
                     }
                 }
             }
@@ -385,19 +384,15 @@ fn main() {
                     &used_home,
                     &used_work,
                 );
-                for dx in -2i32..=2i32 {
-                    for dy in -2i32..=2i32 {
-                        if manhattan_distance_dxdy(dx, dy) <= 2 {
-                            let nx = sta.pos.x as i32 + dx;
-                            let ny = sta.pos.y as i32 + dy;
-                            if !in_range(nx, ny) {
-                                continue;
-                            }
-                            if used[nx as usize][ny as usize] {
-                                sta.num_new_users = 0;
-                                sta.num_known_users = 0;
-                            }
-                        }
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = sta.pos.x as i32 + dx;
+                    let ny = sta.pos.y as i32 + dy;
+                    if !in_range(nx, ny) {
+                        continue;
+                    }
+                    if used[nx as usize][ny as usize] {
+                        sta.num_new_users = 0;
+                        sta.num_known_users = 0;
                     }
                 }
             }
@@ -798,29 +793,23 @@ fn main() {
 
                 for &idx in nconnected_peopleidx.iter() {
                     let p = &people[idx];
-                    for dx1 in -2i32..=2i32 {
-                        for dy1 in -2i32..=2i32 {
-                            for dx2 in -2i32..=2i32 {
-                                for dy2 in -2i32..=2i32 {
-                                    if manhattan_distance_dxdy(dx1, dy1) <= 2
-                                        && manhattan_distance_dxdy(dx2, dy2) <= 2
-                                        && in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
-                                        && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
-                                    {
-                                        let p1 = Point::new(
-                                            (p.home.x as i32 + dx1) as usize,
-                                            (p.home.y as i32 + dy1) as usize,
-                                        );
-                                        let p2 = Point::new(
-                                            (p.work.x as i32 + dx2) as usize,
-                                            (p.work.y as i32 + dy2) as usize,
-                                        );
-                                        if (p1 == stations[i].pos && p2 == stations[j].pos)
-                                            || (p1 == stations[j].pos && p2 == stations[i].pos)
-                                        {
-                                            profit += p.dist() as i32;
-                                        }
-                                    }
+                    for (dx1, dy1) in MANHATTAN_2_LIST {
+                        for (dx2, dy2) in MANHATTAN_2_LIST {
+                            if in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
+                                && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
+                            {
+                                let p1 = Point::new(
+                                    (p.home.x as i32 + dx1) as usize,
+                                    (p.home.y as i32 + dy1) as usize,
+                                );
+                                let p2 = Point::new(
+                                    (p.work.x as i32 + dx2) as usize,
+                                    (p.work.y as i32 + dy2) as usize,
+                                );
+                                if (p1 == stations[i].pos && p2 == stations[j].pos)
+                                    || (p1 == stations[j].pos && p2 == stations[i].pos)
+                                {
+                                    profit += p.dist() as i32;
                                 }
                             }
                         }
