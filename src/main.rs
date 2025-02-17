@@ -145,6 +145,137 @@ fn in_range(x: i32, y: i32) -> bool {
     x >= 0 && x < N as i32 && y >= 0 && y < N as i32
 }
 
+fn get_station(
+    x: usize,
+    y: usize,
+    people: &Vec<Person>,
+    grid_to_peopleidx: &Vec<Vec<Vec<usize>>>,
+    used_home: &Vec<bool>,
+    used_work: &Vec<bool>,
+) -> Station {
+    let mut num_new_users = 0;
+    let mut num_known_users = 0;
+    for dx in -2i32..=2i32 {
+        for dy in -2i32..=2i32 {
+            if manhattan_distance_dxdy(dx, dy) <= 2 {
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                if !in_range(nx, ny) {
+                    continue;
+                }
+                let p = Point::new(nx as usize, ny as usize);
+                for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
+                    if used_home[i] && used_work[i] {
+                        continue;
+                    } else if used_home[i] && people[i].work == p {
+                        num_known_users += 1;
+                    } else if used_work[i] && people[i].home == p {
+                        num_known_users += 1;
+                    } else if !used_home[i] && !used_work[i] {
+                        num_new_users += 1;
+                    }
+                }
+            }
+        }
+    }
+    Station::new(Point::new(x, y), num_new_users, num_known_users)
+}
+
+fn update_income(
+    income: &mut usize,
+    nconnected_peopleidx: &mut collections::HashSet<usize>,
+    people: &Vec<Person>,
+    grid_dsu: &mut ac_library::Dsu,
+    grid_state: &Vec<Vec<GridState>>,
+    pos2sta: &Vec<Vec<usize>>,
+) {
+    let mut done = collections::HashSet::new();
+    for &i in nconnected_peopleidx.iter() {
+        if done.contains(&i) {
+            continue;
+        }
+        let p = &people[i];
+        for dx1 in -2i32..=2i32 {
+            for dy1 in -2i32..=2i32 {
+                for dx2 in -2i32..=2i32 {
+                    for dy2 in -2i32..=2i32 {
+                        if manhattan_distance_dxdy(dx1, dy1) <= 2
+                            && manhattan_distance_dxdy(dx2, dy2) <= 2
+                            && in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
+                            && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
+                        {
+                            let p1 = Point::new(
+                                (p.home.x as i32 + dx1) as usize,
+                                (p.home.y as i32 + dy1) as usize,
+                            );
+                            let p2 = Point::new(
+                                (p.work.x as i32 + dx2) as usize,
+                                (p.work.y as i32 + dy2) as usize,
+                            );
+                            if grid_dsu.same(p1.to_idx(), p2.to_idx())
+                                && grid_state[p1.x][p1.y] == GridState::Station(pos2sta[p1.x][p1.y])
+                                && grid_state[p2.x][p2.y] == GridState::Station(pos2sta[p2.x][p2.y])
+                                && !done.contains(&i)
+                            {
+                                *income += p.dist();
+                                done.insert(i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for &i in &done {
+        nconnected_peopleidx.remove(&i);
+    }
+}
+
+fn find_path(
+    a: Point,
+    to_sta: usize,
+    next_pos: &Vec<Vec<Vec<Point>>>,
+    grid_state: &Vec<Vec<GridState>>,
+    pos2sta: &Vec<Vec<usize>>,
+) -> (Vec<usize>, Vec<Point>) {
+    let mut res = (Vec::new(), Vec::new());
+    let mut now = a;
+    while now != next_pos[to_sta][now.x][now.y] {
+        let nxt = next_pos[to_sta][now.x][now.y];
+        if now == a {
+            // どうせ駅
+            // Do nothing
+        } else if grid_state[now.x][now.y] == GridState::Empty {
+            res.1.push(now);
+
+            // Empty Empty なら線路で OK
+            if grid_state[nxt.x][nxt.y] == GridState::Empty {
+                // Do nothing
+            }
+            // もし次の部分が駅になる予定で、新しい方向から入ってくるなら駅を立てる
+            else if pos2sta[nxt.x][nxt.y] != !0
+                && grid_state[nxt.x][nxt.y] != GridState::Station(pos2sta[nxt.x][nxt.y])
+            {
+                res.0.push(pos2sta[nxt.x][nxt.y]);
+            }
+        } else {
+            // 線路か駅
+            let staidx = pos2sta[now.x][now.y];
+            // 今後駅ができる かつ次が新しい方向なら駅をつくる
+            if staidx != !0
+                && grid_state[now.x][now.y] != GridState::Station(staidx)
+                && grid_state[nxt.x][nxt.y] == GridState::Empty
+            {
+                // 駅をつくる
+                res.0.push(staidx);
+            }
+        }
+
+        now = next_pos[to_sta][now.x][now.y];
+    }
+    res
+}
+
 fn main() {
     let time = Instant::now();
     let mut rng = rand::thread_rng();
@@ -186,42 +317,6 @@ fn main() {
     {
         let mut used_home = vec![false; m];
         let mut used_work = vec![false; m];
-
-        fn get_station(
-            x: usize,
-            y: usize,
-            people: &Vec<Person>,
-            grid_to_peopleidx: &Vec<Vec<Vec<usize>>>,
-            used_home: &Vec<bool>,
-            used_work: &Vec<bool>,
-        ) -> Station {
-            let mut num_new_users = 0;
-            let mut num_known_users = 0;
-            for dx in -2i32..=2i32 {
-                for dy in -2i32..=2i32 {
-                    if manhattan_distance_dxdy(dx, dy) <= 2 {
-                        let nx = x as i32 + dx;
-                        let ny = y as i32 + dy;
-                        if !in_range(nx, ny) {
-                            continue;
-                        }
-                        let p = Point::new(nx as usize, ny as usize);
-                        for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
-                            if used_home[i] && used_work[i] {
-                                continue;
-                            } else if used_home[i] && people[i].work == p {
-                                num_known_users += 1;
-                            } else if used_work[i] && people[i].home == p {
-                                num_known_users += 1;
-                            } else if !used_home[i] && !used_work[i] {
-                                num_new_users += 1;
-                            }
-                        }
-                    }
-                }
-            }
-            Station::new(Point::new(x, y), num_new_users, num_known_users)
-        }
 
         let mut pq = Vec::new();
         for x in 0..N {
@@ -472,103 +567,6 @@ fn main() {
 
     for i in 0..m {
         nconnected_peopleidx.insert(i);
-    }
-
-    fn update_income(
-        income: &mut usize,
-        nconnected_peopleidx: &mut collections::HashSet<usize>,
-        people: &Vec<Person>,
-        grid_dsu: &mut ac_library::Dsu,
-        grid_state: &Vec<Vec<GridState>>,
-        pos2sta: &Vec<Vec<usize>>,
-    ) {
-        let mut done = collections::HashSet::new();
-        for &i in nconnected_peopleidx.iter() {
-            if done.contains(&i) {
-                continue;
-            }
-            let p = &people[i];
-            for dx1 in -2i32..=2i32 {
-                for dy1 in -2i32..=2i32 {
-                    for dx2 in -2i32..=2i32 {
-                        for dy2 in -2i32..=2i32 {
-                            if manhattan_distance_dxdy(dx1, dy1) <= 2
-                                && manhattan_distance_dxdy(dx2, dy2) <= 2
-                                && in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
-                                && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
-                            {
-                                let p1 = Point::new(
-                                    (p.home.x as i32 + dx1) as usize,
-                                    (p.home.y as i32 + dy1) as usize,
-                                );
-                                let p2 = Point::new(
-                                    (p.work.x as i32 + dx2) as usize,
-                                    (p.work.y as i32 + dy2) as usize,
-                                );
-                                if grid_dsu.same(p1.to_idx(), p2.to_idx())
-                                    && grid_state[p1.x][p1.y]
-                                        == GridState::Station(pos2sta[p1.x][p1.y])
-                                    && grid_state[p2.x][p2.y]
-                                        == GridState::Station(pos2sta[p2.x][p2.y])
-                                    && !done.contains(&i)
-                                {
-                                    *income += p.dist();
-                                    done.insert(i);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        for &i in &done {
-            nconnected_peopleidx.remove(&i);
-        }
-    }
-
-    fn find_path(
-        a: Point,
-        to_sta: usize,
-        next_pos: &Vec<Vec<Vec<Point>>>,
-        grid_state: &Vec<Vec<GridState>>,
-        pos2sta: &Vec<Vec<usize>>,
-    ) -> (Vec<usize>, Vec<Point>) {
-        let mut res = (Vec::new(), Vec::new());
-        let mut now = a;
-        while now != next_pos[to_sta][now.x][now.y] {
-            let nxt = next_pos[to_sta][now.x][now.y];
-            if now == a {
-                // どうせ駅
-                // Do nothing
-            } else if grid_state[now.x][now.y] == GridState::Empty {
-                res.1.push(now);
-
-                // Empty Empty なら線路で OK
-                if grid_state[nxt.x][nxt.y] == GridState::Empty {
-                    // Do nothing
-                }
-                // もし次の部分が駅になる予定で、新しい方向から入ってくるなら駅を立てる
-                else if pos2sta[nxt.x][nxt.y] != !0
-                    && grid_state[nxt.x][nxt.y] != GridState::Station(pos2sta[nxt.x][nxt.y])
-                {
-                    res.0.push(pos2sta[nxt.x][nxt.y]);
-                }
-            } else {
-                // 線路か駅
-                let staidx = pos2sta[now.x][now.y];
-                // 今後駅ができる かつ次が新しい方向なら駅をつくる
-                if staidx != !0
-                    && grid_state[now.x][now.y] != GridState::Station(staidx)
-                    && grid_state[nxt.x][nxt.y] == GridState::Empty
-                {
-                    // 駅をつくる
-                    res.0.push(staidx);
-                }
-            }
-
-            now = next_pos[to_sta][now.x][now.y];
-        }
-        res
     }
 
     while turn < T {
