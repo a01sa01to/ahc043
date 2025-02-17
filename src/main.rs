@@ -426,8 +426,6 @@ fn main() {
                 let mut cur = vec![vec!['.'; N]; N];
                 let mut score = 0;
                 let mut d = ac_library::Dsu::new(stations.len());
-                let idstr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-                let mut id = 0;
                 let mut groups_cnt = stations.len();
                 for (_dst, (i, j)) in &edges {
                     if groups_cnt == 1 {
@@ -462,7 +460,9 @@ fn main() {
                         continue;
                     }
                     score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
+
                     let mut now_pos = stations[*j].pos;
+                    let mut prv_pos = stations[*j].pos;
                     while now_pos != stations[*i].pos {
                         let mut next_pos = now_pos;
                         let mut cand = vec![
@@ -481,7 +481,41 @@ fn main() {
                             }
                         }
                         assert_ne!(next_pos, now_pos);
-                        cur[now_pos.x][now_pos.y] = idstr.chars().nth(id).unwrap();
+
+                        if prv_pos != now_pos {
+                            // どの向きにつながるか
+                            let mut mask = 0usize;
+                            for &(q, msk) in &[
+                                (now_pos.left(), MASK_L),
+                                (now_pos.right(), MASK_R),
+                                (now_pos.up(), MASK_U),
+                                (now_pos.down(), MASK_D),
+                            ] {
+                                if q == prv_pos || q == next_pos {
+                                    mask |= msk;
+                                }
+                            }
+
+                            assert_eq!(mask.count_ones(), 2);
+
+                            if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
+                                cur[now_pos.x][now_pos.y] = '-';
+                            } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
+                                cur[now_pos.x][now_pos.y] = '|';
+                            } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
+                                cur[now_pos.x][now_pos.y] = '\\';
+                            } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
+                                cur[now_pos.x][now_pos.y] = 'J'
+                            } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
+                                cur[now_pos.x][now_pos.y] = 'L'
+                            } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
+                                cur[now_pos.x][now_pos.y] = '/';
+                            } else {
+                                unreachable!();
+                            }
+                        }
+
+                        prv_pos = now_pos;
                         now_pos = next_pos;
                     }
                     cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
@@ -489,8 +523,6 @@ fn main() {
 
                     d.merge(*i, *j);
                     groups_cnt -= 1;
-
-                    id += 1;
                 }
                 if score < best_score {
                     best_score = score;
@@ -522,6 +554,46 @@ fn main() {
         res
     };
     {
+        let graph = {
+            let mut res = vec![vec![Vec::new(); N]; N];
+            for i in 0..N {
+                for j in 0..N {
+                    if target_grid[i][j] == '.' {
+                        continue;
+                    }
+                    let p = Point::new(i, j);
+                    let mut cand = Vec::new();
+                    if target_grid[i][j] == '#' {
+                        cand = vec![p.left(), p.right(), p.up(), p.down()];
+                    }
+                    if target_grid[i][j] == '-' {
+                        cand = vec![p.left(), p.right()];
+                    }
+                    if target_grid[i][j] == '|' {
+                        cand = vec![p.up(), p.down()];
+                    }
+                    if target_grid[i][j] == 'L' {
+                        cand = vec![p.right(), p.up()];
+                    }
+                    if target_grid[i][j] == 'J' {
+                        cand = vec![p.left(), p.up()];
+                    }
+                    if target_grid[i][j] == '\\' {
+                        cand = vec![p.left(), p.down()];
+                    }
+                    if target_grid[i][j] == '/' {
+                        cand = vec![p.right(), p.down()];
+                    }
+                    for &q in &cand {
+                        if q.in_range() {
+                            res[q.x][q.y].push(p);
+                        }
+                    }
+                }
+            }
+            res
+        };
+
         for (i, s) in stations.iter().enumerate() {
             dist[i][i] = 0;
             next_pos[i][s.pos.x][s.pos.y] = s.pos;
@@ -532,15 +604,11 @@ fn main() {
             grid_dist[s.pos.x][s.pos.y] = 0;
             while !que.is_empty() {
                 let p = que.pop_front().unwrap();
-                for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                for &q in &graph[p.x][p.y] {
                     if !q.in_range() || target_grid[q.x][q.y] == '.' {
                         continue;
                     }
-                    if grid_dist[q.x][q.y] == INF
-                        && (target_grid[p.x][p.y] == '#'
-                            || target_grid[q.x][q.y] == '#'
-                            || target_grid[q.x][q.y] == target_grid[p.x][p.y])
-                    {
+                    if grid_dist[q.x][q.y] == INF {
                         grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
                         // 木になってるので、次の位置は一意に定まる
                         next_pos[i][q.x][q.y] = p;
@@ -764,34 +832,52 @@ fn main() {
             station_todo.push_back(s);
         }
         for p in path.iter() {
-            let mut mask = 0usize;
-            for &(q, msk) in &[
-                (p.left(), MASK_L),
-                (p.right(), MASK_R),
-                (p.up(), MASK_U),
-                (p.down(), MASK_D),
-            ] {
-                if q == next_pos[i][p.x][p.y] || q == next_pos[j][p.x][p.y] {
-                    mask |= msk;
+            if target_grid[p.x][p.y] == '#' {
+                let mut mask = 0usize;
+                for &(q, msk) in &[
+                    (p.left(), MASK_L),
+                    (p.right(), MASK_R),
+                    (p.up(), MASK_U),
+                    (p.down(), MASK_D),
+                ] {
+                    if q == next_pos[i][p.x][p.y] || q == next_pos[j][p.x][p.y] {
+                        mask |= msk;
+                    }
                 }
-            }
 
-            assert_eq!(mask.count_ones(), 2);
+                assert_eq!(mask.count_ones(), 2);
 
-            if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
-                rail_todo.push_back((RailType::LR, p.x, p.y));
-            } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
-                rail_todo.push_back((RailType::UD, p.x, p.y));
-            } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
-                rail_todo.push_back((RailType::LD, p.x, p.y));
-            } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
-                rail_todo.push_back((RailType::LU, p.x, p.y));
-            } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
-                rail_todo.push_back((RailType::RU, p.x, p.y));
-            } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
-                rail_todo.push_back((RailType::RD, p.x, p.y));
+                if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
+                    rail_todo.push_back((RailType::LR, p.x, p.y));
+                } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::UD, p.x, p.y));
+                } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::LD, p.x, p.y));
+                } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
+                    rail_todo.push_back((RailType::LU, p.x, p.y));
+                } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
+                    rail_todo.push_back((RailType::RU, p.x, p.y));
+                } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
+                    rail_todo.push_back((RailType::RD, p.x, p.y));
+                } else {
+                    unreachable!();
+                }
             } else {
-                unreachable!();
+                if target_grid[p.x][p.y] == '-' {
+                    rail_todo.push_back((RailType::LR, p.x, p.y));
+                } else if target_grid[p.x][p.y] == '|' {
+                    rail_todo.push_back((RailType::UD, p.x, p.y));
+                } else if target_grid[p.x][p.y] == '\\' {
+                    rail_todo.push_back((RailType::LD, p.x, p.y));
+                } else if target_grid[p.x][p.y] == 'J' {
+                    rail_todo.push_back((RailType::LU, p.x, p.y));
+                } else if target_grid[p.x][p.y] == 'L' {
+                    rail_todo.push_back((RailType::RU, p.x, p.y));
+                } else if target_grid[p.x][p.y] == '/' {
+                    rail_todo.push_back((RailType::RD, p.x, p.y));
+                } else {
+                    unreachable!();
+                }
             }
         }
     }
