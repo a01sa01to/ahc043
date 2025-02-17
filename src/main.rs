@@ -332,6 +332,8 @@ fn main() {
     // 駅の場所を決める
     let mut stations = Vec::new();
     {
+        let mut used = vec![vec![false; N]; N];
+
         let mut used_home = vec![false; m];
         let mut used_work = vec![false; m];
 
@@ -360,6 +362,7 @@ fn main() {
                         if !in_range(nx, ny) {
                             continue;
                         }
+                        used[nx as usize][ny as usize] = true;
                         let p = Point::new(nx as usize, ny as usize);
                         for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
                             if people[i].home == p {
@@ -381,6 +384,21 @@ fn main() {
                     &used_home,
                     &used_work,
                 );
+                for dx in -2i32..=2i32 {
+                    for dy in -2i32..=2i32 {
+                        if manhattan_distance_dxdy(dx, dy) <= 2 {
+                            let nx = sta.pos.x as i32 + dx;
+                            let ny = sta.pos.y as i32 + dy;
+                            if !in_range(nx, ny) {
+                                continue;
+                            }
+                            if used[nx as usize][ny as usize] {
+                                sta.num_new_users = 0;
+                                sta.num_known_users = 0;
+                            }
+                        }
+                    }
+                }
             }
             pq.sort_by(|a, b| a.sum_users().cmp(&b.sum_users()));
             pq.reverse();
