@@ -774,15 +774,25 @@ fn main() {
                 let (cost, need_build_turn) = {
                     let (addsta, addpath) =
                         find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+
+                    let mut nexista = 0;
+                    if grid_state[stations[i].pos.x][stations[i].pos.y] != GridState::Station(i) {
+                        nexista += 1;
+                    }
+                    if grid_state[stations[j].pos.x][stations[j].pos.y] != GridState::Station(j) {
+                        nexista += 1;
+                    }
+
                     (
-                        (addsta.len() * COST_STATION + addpath.len() * COST_RAIL) as i32,
+                        ((addsta.len() + nexista) * COST_STATION + addpath.len() * COST_RAIL)
+                            as i32,
                         (addsta.len() + addpath.len()) as i32,
                     )
                 };
                 let need_wait_turn = if income == 0 {
                     0
                 } else {
-                    (cost as i32 - k as i32).max(0) / income as i32
+                    (cost as i32 - k as i32 + income as i32 - 1).max(0) / income as i32
                 };
 
                 for &idx in nconnected_peopleidx.iter() {
