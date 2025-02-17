@@ -1,14 +1,15 @@
 extern crate rand;
 use proconio::input;
 use rand::{seq::SliceRandom, Rng};
-use std::{cmp, collections, mem::swap, time::Instant};
+use std::{cmp, collections, fmt, mem::swap, time::Instant};
 
-const COST_STATION: u32 = 5000;
-const COST_RAIL: u32 = 100;
+const COST_STATION: usize = 5000;
+const COST_RAIL: usize = 100;
 const N: usize = 50;
 const T: usize = 800;
-const INF: u32 = 10u32.pow(9);
+const INF: usize = 10usize.pow(9);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum RailType {
     LR = 1,
     UD = 2,
@@ -16,6 +17,18 @@ enum RailType {
     LU = 4,
     RU = 5,
     RD = 6,
+}
+impl fmt::Display for RailType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RailType::LR => write!(f, "1"),
+            RailType::UD => write!(f, "2"),
+            RailType::LD => write!(f, "3"),
+            RailType::LU => write!(f, "4"),
+            RailType::RU => write!(f, "5"),
+            RailType::RD => write!(f, "6"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -48,10 +61,16 @@ impl Point {
     fn in_range(&self) -> bool {
         self.x < N && self.y < N
     }
+    fn to_idx(&self) -> usize {
+        self.x * N + self.y
+    }
 }
 
 fn manhattan_distance(p1: &Point, p2: &Point) -> u32 {
     ((p1.x as i32 - p2.x as i32).abs() + (p1.y as i32 - p2.y as i32).abs()) as u32
+}
+fn manhattan_distance_dxdy(dx: i32, dy: i32) -> u32 {
+    (dx.abs() + dy.abs()) as u32
 }
 
 #[derive(Clone, Copy)]
@@ -63,8 +82,8 @@ impl Person {
     fn new(home: Point, work: Point) -> Self {
         Self { home, work }
     }
-    fn dist(&self) -> u32 {
-        manhattan_distance(&self.home, &self.work)
+    fn dist(&self) -> usize {
+        manhattan_distance(&self.home, &self.work) as usize
     }
 }
 
@@ -163,7 +182,7 @@ fn main() {
             let mut num_known_users = 0;
             for dx in -2i32..=2i32 {
                 for dy in -2i32..=2i32 {
-                    if dx.abs() + dy.abs() <= 2 {
+                    if manhattan_distance_dxdy(dx, dy) <= 2 {
                         let nx = x as i32 + dx;
                         let ny = y as i32 + dy;
                         if !in_range(nx, ny) {
@@ -206,7 +225,7 @@ fn main() {
             stations.push(s);
             for dx in -2i32..=2i32 {
                 for dy in -2i32..=2i32 {
-                    if dx.abs() + dy.abs() <= 2 {
+                    if manhattan_distance_dxdy(dx, dy) <= 2 {
                         let nx = s.pos.x as i32 + dx;
                         let ny = s.pos.y as i32 + dy;
                         if !in_range(nx, ny) {
@@ -417,10 +436,135 @@ fn main() {
         }
     }
 
-    for s in &stations {
-        println!("0 {} {}", s.pos.x, s.pos.y);
+    // 答えを出すパート
+    let mut turn = 0;
+    let mut income = 0;
+    let mut nconnected_peopleidx = collections::HashSet::new();
+    let mut rail_todo = collections::VecDeque::new();
+    let mut station_todo = collections::VecDeque::new();
+    let mut grid_dsu = ac_library::Dsu::new(N * N);
+
+    for i in 0..m {
+        nconnected_peopleidx.insert(i);
     }
-    for _ in stations.len()..T {
-        println!("-1");
+
+    fn update_income(
+        income: &mut usize,
+        nconnected_peopleidx: &mut collections::HashSet<usize>,
+        people: &Vec<Person>,
+        grid_dsu: &mut ac_library::Dsu,
+    ) {
+        let mut done = collections::HashSet::new();
+        for &i in nconnected_peopleidx.iter() {
+            if done.contains(&i) {
+                continue;
+            }
+            let p: &Person = &people[i];
+            for dx1 in -2i32..=2i32 {
+                for dy1 in -2i32..=2i32 {
+                    for dx2 in -2i32..=2i32 {
+                        for dy2 in -2i32..=2i32 {
+                            if manhattan_distance_dxdy(dx1, dy1) <= 2
+                                && manhattan_distance_dxdy(dx2, dy2) <= 2
+                                && in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
+                                && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
+                            {
+                                let p1 = Point::new(
+                                    (p.home.x as i32 + dx1) as usize,
+                                    (p.home.y as i32 + dy1) as usize,
+                                );
+                                let p2 = Point::new(
+                                    (p.work.x as i32 + dx2) as usize,
+                                    (p.work.y as i32 + dy2) as usize,
+                                );
+                                if grid_dsu.same(p1.to_idx(), p2.to_idx()) {
+                                    *income += p.dist();
+                                    done.insert(i);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for &i in &done {
+            nconnected_peopleidx.remove(&i);
+        }
+    }
+
+    while turn < T {
+        turn += 1;
+
+        if !station_todo.is_empty() && k >= COST_STATION {
+            let i = station_todo.pop_front().unwrap();
+            let s: &Station = &stations[i];
+            println!("0 {} {}", s.pos.x, s.pos.y);
+
+            for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
+                if !q.in_range() {
+                    continue;
+                }
+                grid_dsu.merge(s.pos.to_idx(), q.to_idx());
+            }
+            update_income(
+                &mut income,
+                &mut nconnected_peopleidx,
+                &people,
+                &mut grid_dsu,
+            );
+
+            k -= COST_STATION;
+            k += income;
+            continue;
+        }
+
+        if !rail_todo.is_empty() && k >= COST_RAIL {
+            let (t, i, j) = rail_todo.pop_front().unwrap();
+            let p = Point::new(i, j);
+            println!("{} {} {}", t, i, j);
+
+            let mut cand = Vec::new();
+            if t == RailType::LD || t == RailType::LR || t == RailType::LU {
+                assert!(p.left().in_range());
+                cand.push(p.left());
+            }
+            if t == RailType::RD || t == RailType::LR || t == RailType::RU {
+                assert!(p.right().in_range());
+                cand.push(p.right());
+            }
+            if t == RailType::LU || t == RailType::RU || t == RailType::UD {
+                assert!(p.up().in_range());
+                cand.push(p.up());
+            }
+            if t == RailType::LD || t == RailType::RD || t == RailType::UD {
+                assert!(p.down().in_range());
+                cand.push(p.down());
+            }
+
+            for &q in &cand {
+                grid_dsu.merge(p.to_idx(), q.to_idx());
+            }
+            update_income(
+                &mut income,
+                &mut nconnected_peopleidx,
+                &people,
+                &mut grid_dsu,
+            );
+
+            k -= COST_RAIL;
+            k += income;
+            continue;
+        }
+
+        if !rail_todo.is_empty() || !station_todo.is_empty() {
+            println!("-1");
+            k += income;
+            continue;
+        }
+
+        // TODO: impl
+        // 型付けのために push
+        rail_todo.push_back((RailType::LR, 0usize, 1usize));
+        station_todo.push_back(0usize);
     }
 }
