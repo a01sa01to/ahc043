@@ -856,11 +856,13 @@ fn main() {
                 }
             }
         }
-        // どうせ収益が減るならやらない
+        // どうせ収益が減るならやめる
         if best.0 == 0 {
-            k += income;
-            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
-            continue;
+            for x in turn..=T {
+                k += income;
+                ans[x - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
+            }
+            break;
         }
         assert_ne!(best.1, !0);
 
