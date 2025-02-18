@@ -11,13 +11,11 @@ maxTime = [0, 0]
 print("\033[1m\033[7m Calculating... \033[0m")
 
 for i in range(1, FILES + 1):
-    # with open(".{}tools{}res{}{}.txt".format(os.sep, os.sep, os.sep, i)) as f:
-    with open(".{}tools{}err{}{}.txt".format(os.sep, os.sep, os.sep, i)) as f:
+    with open(".{}tools{}res{}{}.txt".format(os.sep, os.sep, os.sep, i)) as f:
         flg = False
         lines = f.readlines()
         for line in lines:
-            # if line.count("Score ="):
-            if line.count("Cost ="):
+            if line.count("Score ="):
                 t = int(line.split(" = ")[1])
                 flg = True
                 if t:
