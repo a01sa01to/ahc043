@@ -404,40 +404,6 @@ fn main() {
             pq.reverse();
         }
     }
-    let stations = stations;
-    let people2sta = {
-        let mut res = vec![(!0, !0); m];
-        for (i, p) in people.iter().enumerate() {
-            for (j, s) in stations.iter().enumerate() {
-                for (dx, dy) in MANHATTAN_2_LIST {
-                    let nx = s.pos.x as i32 + dx;
-                    let ny = s.pos.y as i32 + dy;
-                    let po = Point::new(nx as usize, ny as usize);
-                    if po.in_range() && p.home == po {
-                        res[i].0 = j;
-                    }
-                    if po.in_range() && p.work == po {
-                        res[i].1 = j;
-                    }
-                }
-            }
-        }
-        res
-    };
-    let sta2users = {
-        let mut res = vec![Vec::new(); stations.len()];
-        for i in 0..stations.len() {
-            for j in 0..m {
-                if people2sta[j].0 == !0 || people2sta[j].1 == !0 {
-                    continue;
-                }
-                if people2sta[j].0 == i || people2sta[j].1 == i {
-                    res[i].push(j);
-                }
-            }
-        }
-        res
-    };
 
     eprintln!("Time for finding station: {}ms", time.elapsed().as_millis());
     eprintln!("# of stations: {}", stations.len());
@@ -598,6 +564,53 @@ fn main() {
         eprintln!("Score: {}", best_score);
     }
 
+    {
+        let mut sta_unused = Vec::new();
+        for i in 0..stations.len() {
+            if target_grid[stations[i].pos.x][stations[i].pos.y] != '#' {
+                sta_unused.push(i);
+            }
+        }
+        for &i in sta_unused.iter().rev() {
+            stations.remove(i);
+        }
+    }
+    let stations = stations;
+
+    let people2sta = {
+        let mut res = vec![(!0, !0); m];
+        for (i, p) in people.iter().enumerate() {
+            for (j, s) in stations.iter().enumerate() {
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = s.pos.x as i32 + dx;
+                    let ny = s.pos.y as i32 + dy;
+                    let po = Point::new(nx as usize, ny as usize);
+                    if po.in_range() && p.home == po {
+                        res[i].0 = j;
+                    }
+                    if po.in_range() && p.work == po {
+                        res[i].1 = j;
+                    }
+                }
+            }
+        }
+        res
+    };
+    let sta2users = {
+        let mut res = vec![Vec::new(); stations.len()];
+        for i in 0..stations.len() {
+            for j in 0..m {
+                if people2sta[j].0 == !0 || people2sta[j].1 == !0 {
+                    continue;
+                }
+                if people2sta[j].0 == i || people2sta[j].1 == i {
+                    res[i].push(j);
+                }
+            }
+        }
+        res
+    };
+
     eprintln!("Time for building graph: {}ms", time.elapsed().as_millis());
     eprintln!("Target Grid:");
     for i in 0..N {
@@ -649,8 +662,8 @@ fn main() {
                         cand = vec![p.right(), p.down()];
                     }
                     for &q in &cand {
-                        if q.in_range() {
-                            res[q.x][q.y].push(p);
+                        if q.in_range() && target_grid[q.x][q.y] != '.' {
+                            res[p.x][p.y].push(q);
                         }
                     }
                 }
@@ -668,13 +681,14 @@ fn main() {
             grid_dist[s.pos.x][s.pos.y] = 0;
             while !que.is_empty() {
                 let p = que.pop_front().unwrap();
+                assert!(p.in_range());
+                assert!(next_pos[i][p.x][p.y].in_range());
                 for &q in &graph[p.x][p.y] {
-                    if !q.in_range() || target_grid[q.x][q.y] == '.' {
-                        continue;
-                    }
+                    assert!(q.in_range());
+                    assert_ne!(target_grid[q.x][q.y], '.');
                     if grid_dist[q.x][q.y] == INF {
                         grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
-                        // 木になってるので、次の位置は一意に定まる
+                        // 木になってるので次の位置は一意に定まる
                         next_pos[i][q.x][q.y] = p;
                         que.push_back(q);
                         if target_grid[q.x][q.y] == '#' {
