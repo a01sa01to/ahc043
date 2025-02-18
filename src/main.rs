@@ -886,7 +886,8 @@ fn main() {
                         checked.insert(idx);
                     }
                 }
-                let score = profit * ((T - turn) as i32 - need_build_turn - need_wait_turn) - cost;
+                let score =
+                    profit * ((T - (turn - 1)) as i32 - need_build_turn - need_wait_turn) - cost;
                 // turn 1 なら制約付き
                 if score > best.0 && (turn != 1 || k >= dist[i][j] * COST_RAIL + 2 * COST_STATION) {
                     best = (score, i, j);
