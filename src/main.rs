@@ -196,19 +196,17 @@ fn get_station(
 
 fn update_income(
     income: &mut usize,
-    nconnected_peopleidx: &mut collections::HashSet<usize>,
+    nconnected_peopleidx: &mut Vec<usize>,
     people: &Vec<Person>,
     grid_dsu: &mut ac_library::Dsu,
     grid_state: &Vec<Vec<GridState>>,
     pos2sta: &Vec<Vec<usize>>,
 ) {
-    let mut done = collections::HashSet::new();
+    let mut nxt_nconn = Vec::new();
     for &i in nconnected_peopleidx.iter() {
-        if done.contains(&i) {
-            continue;
-        }
         let p = &people[i];
-        for (dx1, dy1) in MANHATTAN_2_LIST {
+        let mut flg = false;
+        'outer: for (dx1, dy1) in MANHATTAN_2_LIST {
             for (dx2, dy2) in MANHATTAN_2_LIST {
                 if in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
                     && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
@@ -224,18 +222,26 @@ fn update_income(
                     if grid_dsu.same(p1.to_idx(), p2.to_idx())
                         && grid_state[p1.x][p1.y] == GridState::Station(pos2sta[p1.x][p1.y])
                         && grid_state[p2.x][p2.y] == GridState::Station(pos2sta[p2.x][p2.y])
-                        && !done.contains(&i)
                     {
                         *income += p.dist();
-                        done.insert(i);
+                        flg = true;
+                        break 'outer;
                     }
                 }
             }
         }
+        if !flg {
+            nxt_nconn.push(i);
+        }
     }
-    for &i in &done {
-        nconnected_peopleidx.remove(&i);
-    }
+
+    // if nxt_nconn.len() > 1 {
+    //     for i in 0..nxt_nconn.len() - 1 {
+    //         assert!(nxt_nconn[i] < nxt_nconn[i + 1]);
+    //     }
+    // }
+
+    *nconnected_peopleidx = nxt_nconn;
 }
 
 fn find_path(
@@ -420,20 +426,6 @@ fn main() {
                 }
             }
             res.sort();
-            res
-        };
-
-        let eq_range = {
-            let mut res = Vec::new();
-            let mut i = 0;
-            while i < edges.len() {
-                let mut j = i;
-                while j < edges.len() && edges[j].0 == edges[i].0 {
-                    j += 1;
-                }
-                res.push((i, j));
-                i = j;
-            }
             res
         };
 
@@ -728,12 +720,12 @@ fn main() {
     // 答えを出すパート
     let mut turn = 0;
     let mut income = 0;
-    let mut nconnected_peopleidx = collections::HashSet::new();
+    let mut nconnected_peopleidx = Vec::new();
     let mut rail_todo = collections::VecDeque::new();
     let mut station_todo = collections::VecDeque::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
-    let mut built_station = collections::HashSet::new();
+    let mut built_station = Vec::new();
     let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
         .map(|_| {
             (0..stations.len())
@@ -747,7 +739,7 @@ fn main() {
 
     for i in 0..m {
         if people2sta[i].0 != !0 && people2sta[i].1 != !0 {
-            nconnected_peopleidx.insert(i);
+            nconnected_peopleidx.push(i);
         }
     }
     for i in 0..stations.len() {
@@ -764,7 +756,7 @@ fn main() {
             let s: &Station = &stations[i];
 
             grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
-            built_station.insert(i);
+            built_station.push(i);
             for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
                 if !q.in_range() {
                     continue;
@@ -878,7 +870,7 @@ fn main() {
                 let mut checked = collections::HashSet::new();
                 for &idx in sta2users[i].iter().chain(sta2users[j].iter()) {
                     if dsu4stapair[i][j].same(people2sta[idx].0, people2sta[idx].1)
-                        && nconnected_peopleidx.contains(&idx)
+                        && nconnected_peopleidx.binary_search(&idx).is_ok()
                         && !checked.contains(&idx)
                     {
                         let p = &people[idx];
