@@ -423,127 +423,124 @@ fn main() {
 
         // 山登り
         let mut best_score = INF;
+        let mut cnt = 0;
         while time.elapsed().as_millis() < 1000 {
-            for _ in 0..100 {
+            cnt += 1;
+            for _ in 0..3 {
                 let i = rng.gen_range(0..edges.len() - 1);
                 let (left, right) = edges.split_at_mut(i + 1);
                 swap(&mut left[i], &mut right[0]);
             }
 
-            let mut cnt = 0;
-            let inner_time = Instant::now();
-            while inner_time.elapsed().as_millis() < 100 {
-                cnt += 1;
-                let mut cur = vec![vec!['.'; N]; N];
-                let mut score = 0;
-                let mut d = ac_library::Dsu::new(stations.len());
-                let mut groups_cnt = stations.len();
-                for (_dst, (i, j)) in &edges {
-                    if groups_cnt == 1 {
+            let mut cur = vec![vec!['.'; N]; N];
+            let mut score = 0;
+            let mut d = ac_library::Dsu::new(stations.len());
+            let mut groups_cnt = stations.len();
+            for (_dst, (i, j)) in &edges {
+                if groups_cnt == 1 {
+                    break;
+                }
+                if d.same(*i, *j) {
+                    continue;
+                }
+
+                // BFS
+                let mut grid_dist = vec![vec![INF; N]; N];
+                let mut que = collections::VecDeque::new();
+                que.push_back(stations[*i].pos);
+                grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
+                while !que.is_empty() {
+                    let p = que.pop_front().unwrap();
+                    if p == stations[*j].pos {
                         break;
                     }
-                    if d.same(*i, *j) {
-                        continue;
-                    }
-
-                    // BFS
-                    let mut grid_dist = vec![vec![INF; N]; N];
-                    let mut que = collections::VecDeque::new();
-                    que.push_back(stations[*i].pos);
-                    grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
-                    while !que.is_empty() {
-                        let p = que.pop_front().unwrap();
-                        if p == stations[*j].pos {
-                            break;
+                    for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                        if !q.in_range()
+                            || grid_dist[q.x][q.y] != INF
+                            || (cur[q.x][q.y] != '.' && cur[q.x][q.y] != '#')
+                        {
+                            continue;
                         }
-                        for &q in &[p.left(), p.right(), p.up(), p.down()] {
-                            if !q.in_range()
-                                || grid_dist[q.x][q.y] != INF
-                                || (cur[q.x][q.y] != '.' && cur[q.x][q.y] != '#')
-                            {
-                                continue;
-                            }
-                            grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
-                            que.push_back(q);
-                        }
+                        grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+                        que.push_back(q);
                     }
-                    if grid_dist[stations[*j].pos.x][stations[*j].pos.y] == INF {
-                        continue;
-                    }
-                    score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
-
-                    let mut now_pos = stations[*j].pos;
-                    let mut prv_pos = stations[*j].pos;
-                    while now_pos != stations[*i].pos {
-                        let mut next_pos = now_pos;
-                        let mut cand = vec![
-                            now_pos.left(),
-                            now_pos.right(),
-                            now_pos.up(),
-                            now_pos.down(),
-                        ];
-                        cand.shuffle(&mut rng);
-                        for &q in &cand {
-                            if !q.in_range() {
-                                continue;
-                            }
-                            if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
-                                next_pos = q;
-                            }
-                        }
-                        assert_ne!(next_pos, now_pos);
-
-                        if cur[now_pos.x][now_pos.y] == '#' {
-                            cur[now_pos.x][now_pos.y] = '#';
-                        } else if prv_pos != now_pos {
-                            // どの向きにつながるか
-                            let mut mask = 0usize;
-                            for &(q, msk) in &[
-                                (now_pos.left(), MASK_L),
-                                (now_pos.right(), MASK_R),
-                                (now_pos.up(), MASK_U),
-                                (now_pos.down(), MASK_D),
-                            ] {
-                                if q == prv_pos || q == next_pos {
-                                    mask |= msk;
-                                }
-                            }
-
-                            assert_eq!(mask.count_ones(), 2);
-
-                            if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
-                                cur[now_pos.x][now_pos.y] = '-';
-                            } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
-                                cur[now_pos.x][now_pos.y] = '|';
-                            } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
-                                cur[now_pos.x][now_pos.y] = '\\';
-                            } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
-                                cur[now_pos.x][now_pos.y] = 'J'
-                            } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
-                                cur[now_pos.x][now_pos.y] = 'L'
-                            } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
-                                cur[now_pos.x][now_pos.y] = '/';
-                            } else {
-                                unreachable!();
-                            }
-                        }
-
-                        prv_pos = now_pos;
-                        now_pos = next_pos;
-                    }
-                    cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
-                    cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
-
-                    d.merge(*i, *j);
-                    groups_cnt -= 1;
                 }
-                if score < best_score {
-                    best_score = score;
-                    target_grid = cur;
+                if grid_dist[stations[*j].pos.x][stations[*j].pos.y] == INF {
+                    continue;
                 }
+                score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
+
+                let mut now_pos = stations[*j].pos;
+                let mut prv_pos = stations[*j].pos;
+                while now_pos != stations[*i].pos {
+                    let mut next_pos = now_pos;
+                    let mut cand = vec![
+                        now_pos.left(),
+                        now_pos.right(),
+                        now_pos.up(),
+                        now_pos.down(),
+                    ];
+                    cand.shuffle(&mut rng);
+                    for &q in &cand {
+                        if !q.in_range() {
+                            continue;
+                        }
+                        if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+                            next_pos = q;
+                        }
+                    }
+                    assert_ne!(next_pos, now_pos);
+
+                    if cur[now_pos.x][now_pos.y] == '#' {
+                        cur[now_pos.x][now_pos.y] = '#';
+                    } else if prv_pos != now_pos {
+                        // どの向きにつながるか
+                        let mut mask = 0usize;
+                        for &(q, msk) in &[
+                            (now_pos.left(), MASK_L),
+                            (now_pos.right(), MASK_R),
+                            (now_pos.up(), MASK_U),
+                            (now_pos.down(), MASK_D),
+                        ] {
+                            if q == prv_pos || q == next_pos {
+                                mask |= msk;
+                            }
+                        }
+
+                        assert_eq!(mask.count_ones(), 2);
+
+                        if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
+                            cur[now_pos.x][now_pos.y] = '-';
+                        } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
+                            cur[now_pos.x][now_pos.y] = '|';
+                        } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
+                            cur[now_pos.x][now_pos.y] = '\\';
+                        } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
+                            cur[now_pos.x][now_pos.y] = 'J'
+                        } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
+                            cur[now_pos.x][now_pos.y] = 'L'
+                        } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
+                            cur[now_pos.x][now_pos.y] = '/';
+                        } else {
+                            unreachable!();
+                        }
+                    }
+
+                    prv_pos = now_pos;
+                    now_pos = next_pos;
+                }
+                cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
+                cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
+
+                d.merge(*i, *j);
+                groups_cnt -= 1;
             }
-            eprintln!("cnt: {}", cnt);
+            if score < best_score {
+                best_score = score;
+                target_grid = cur;
+            }
         }
+        eprintln!("cnt: {}", cnt);
         eprintln!("Score: {}", best_score);
     }
 
