@@ -512,7 +512,9 @@ fn main() {
                         }
                         assert_ne!(next_pos, now_pos);
 
-                        if prv_pos != now_pos {
+                        if cur[now_pos.x][now_pos.y] == '#' {
+                            cur[now_pos.x][now_pos.y] = '#';
+                        } else if prv_pos != now_pos {
                             // どの向きにつながるか
                             let mut mask = 0usize;
                             for &(q, msk) in &[
@@ -573,6 +575,10 @@ fn main() {
         }
         for &i in sta_unused.iter().rev() {
             stations.remove(i);
+        }
+        for (i, s) in stations.iter().enumerate() {
+            assert_eq!(s.pos, stations[i].pos);
+            eprintln!("Station {}: {} {}", i, s.pos.x, s.pos.y);
         }
     }
     let stations = stations;
@@ -697,6 +703,26 @@ fn main() {
                             dist[i][j] = grid_dist[q.x][q.y];
                         }
                     }
+                }
+            }
+        }
+    }
+
+    for i in 0..stations.len() {
+        for j in 0..stations.len() {
+            assert_ne!(
+                dist[i][j], INF,
+                "Sta{}{} -> Sta{}{}",
+                i, stations[i].pos, j, stations[j].pos
+            );
+        }
+    }
+
+    for i in 0..N {
+        for j in 0..N {
+            if target_grid[i][j] != '.' {
+                for s in 0..stations.len() {
+                    assert_ne!(next_pos[s][i][j], Point::new(!0, !0), "{} {} {}", i, j, s);
                 }
             }
         }
