@@ -405,6 +405,39 @@ fn main() {
         }
     }
     let stations = stations;
+    let people2sta = {
+        let mut res = vec![(!0, !0); m];
+        for (i, p) in people.iter().enumerate() {
+            for (j, s) in stations.iter().enumerate() {
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = s.pos.x as i32 + dx;
+                    let ny = s.pos.y as i32 + dy;
+                    let po = Point::new(nx as usize, ny as usize);
+                    if po.in_range() && p.home == po {
+                        res[i].0 = j;
+                    }
+                    if po.in_range() && p.work == po {
+                        res[i].1 = j;
+                    }
+                }
+            }
+        }
+        res
+    };
+    let sta2users = {
+        let mut res = vec![Vec::new(); stations.len()];
+        for i in 0..stations.len() {
+            for j in 0..m {
+                if people2sta[j].0 == !0 || people2sta[j].1 == !0 {
+                    continue;
+                }
+                if people2sta[j].0 == i || people2sta[j].1 == i {
+                    res[i].push(j);
+                }
+            }
+        }
+        res
+    };
 
     eprintln!("Time for finding station: {}ms", time.elapsed().as_millis());
     eprintln!("# of stations: {}", stations.len());
@@ -664,12 +697,26 @@ fn main() {
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
     let mut built_station = collections::HashSet::new();
+    let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
+        .map(|_| {
+            (0..stations.len())
+                .map(|_| ac_library::Dsu::new(stations.len()))
+                .collect()
+        })
+        .collect();
 
     // (output, ターン終了時の (money, income))
     let mut ans = vec![((RailType::None, Point::new(!0, !0)), (0, 0)); T];
 
     for i in 0..m {
-        nconnected_peopleidx.insert(i);
+        if people2sta[i].0 != !0 && people2sta[i].1 != !0 {
+            nconnected_peopleidx.insert(i);
+        }
+    }
+    for i in 0..stations.len() {
+        for j in i + 1..stations.len() {
+            dsu4stapair[i][j].merge(i, j);
+        }
     }
 
     while turn < T {
@@ -791,28 +838,15 @@ fn main() {
                     (cost as i32 - k as i32 + income as i32 - 1).max(0) / income as i32
                 };
 
-                for &idx in nconnected_peopleidx.iter() {
-                    let p = &people[idx];
-                    for (dx1, dy1) in MANHATTAN_2_LIST {
-                        for (dx2, dy2) in MANHATTAN_2_LIST {
-                            if in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1)
-                                && in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2)
-                            {
-                                let p1 = Point::new(
-                                    (p.home.x as i32 + dx1) as usize,
-                                    (p.home.y as i32 + dy1) as usize,
-                                );
-                                let p2 = Point::new(
-                                    (p.work.x as i32 + dx2) as usize,
-                                    (p.work.y as i32 + dy2) as usize,
-                                );
-                                if (p1 == stations[i].pos && p2 == stations[j].pos)
-                                    || (p1 == stations[j].pos && p2 == stations[i].pos)
-                                {
-                                    profit += p.dist() as i32;
-                                }
-                            }
-                        }
+                let mut checked = collections::HashSet::new();
+                for &idx in sta2users[i].iter().chain(sta2users[j].iter()) {
+                    if dsu4stapair[i][j].same(people2sta[idx].0, people2sta[idx].1)
+                        && nconnected_peopleidx.contains(&idx)
+                        && !checked.contains(&idx)
+                    {
+                        let p = &people[idx];
+                        profit += p.dist() as i32;
+                        checked.insert(idx);
                     }
                 }
                 let score = profit * ((T - turn) as i32 - need_build_turn - need_wait_turn) - cost;
@@ -845,6 +879,17 @@ fn main() {
         for &s in &sta {
             station_todo.push_back(s);
         }
+        for ii in 0..stations.len() {
+            for ji in ii + 1..stations.len() {
+                dsu4stapair[ii][ji].merge(i, j);
+                if station_todo.len() > 1 {
+                    for idx in 0..station_todo.len() - 1 {
+                        dsu4stapair[ii][ji].merge(station_todo[idx], station_todo[idx + 1]);
+                    }
+                }
+            }
+        }
+
         for p in path.iter() {
             if target_grid[p.x][p.y] == '#' {
                 let mut mask = 0usize;
