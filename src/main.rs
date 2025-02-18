@@ -439,11 +439,8 @@ fn main() {
 
         // 山登り
         let mut best_score = INF;
-        while time.elapsed().as_millis() < 1500 {
-            for (l, r) in &eq_range {
-                edges[*l..*r].shuffle(&mut rng);
-            }
-            for _ in 0..10 {
+        while time.elapsed().as_millis() < 1000 {
+            for _ in 0..100 {
                 let i = rng.gen_range(0..edges.len() - 1);
                 let (left, right) = edges.split_at_mut(i + 1);
                 swap(&mut left[i], &mut right[0]);
