@@ -36,6 +36,72 @@ enum GridState {
     Station(usize),
     Rail(RailType),
 }
+impl GridState {
+    fn can_conn_left(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station(_) => true,
+            GridState::Rail(r) => match r {
+                RailType::None => false,
+                RailType::Station => true,
+                RailType::LR => true,
+                RailType::UD => false,
+                RailType::LD => true,
+                RailType::LU => true,
+                RailType::RU => false,
+                RailType::RD => false,
+            },
+        }
+    }
+    fn can_conn_right(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station(_) => true,
+            GridState::Rail(r) => match r {
+                RailType::None => false,
+                RailType::Station => true,
+                RailType::LR => true,
+                RailType::UD => false,
+                RailType::LD => false,
+                RailType::LU => false,
+                RailType::RU => true,
+                RailType::RD => true,
+            },
+        }
+    }
+    fn can_conn_up(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station(_) => true,
+            GridState::Rail(r) => match r {
+                RailType::None => false,
+                RailType::Station => true,
+                RailType::LR => false,
+                RailType::UD => true,
+                RailType::LD => false,
+                RailType::LU => true,
+                RailType::RU => true,
+                RailType::RD => false,
+            },
+        }
+    }
+    fn can_conn_down(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station(_) => true,
+            GridState::Rail(r) => match r {
+                RailType::None => false,
+                RailType::Station => true,
+                RailType::LR => false,
+                RailType::UD => true,
+                RailType::LD => true,
+                RailType::LU => false,
+                RailType::RU => false,
+                RailType::RD => true,
+            },
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum RailType {
@@ -795,48 +861,40 @@ fn main() {
                 let staidx = pos2sta[i][j];
                 assert_ne!(staidx, !0);
                 grid_state[i][j] = GridState::Station(staidx);
-
-                for &q in &[p.left(), p.right(), p.up(), p.down()] {
-                    if q.in_range() && grid_state[q.x][q.y] != GridState::Empty {
-                        grid_dsu.merge(p.to_idx(), q.to_idx());
-                    }
-                }
-
                 k -= COST_STATION;
             } else if r != RailType::Station && k >= COST_RAIL {
                 build_todo.pop_front();
                 grid_state[i][j] = GridState::Rail(r);
-
-                if r == RailType::LD || r == RailType::LR || r == RailType::LU {
-                    assert!(p.left().in_range());
-                    if grid_state[p.left().x][p.left().y] != GridState::Empty {
-                        grid_dsu.merge(p.to_idx(), p.left().to_idx());
-                    }
-                }
-                if r == RailType::RD || r == RailType::LR || r == RailType::RU {
-                    assert!(p.right().in_range());
-                    if grid_state[p.right().x][p.right().y] != GridState::Empty {
-                        grid_dsu.merge(p.to_idx(), p.right().to_idx());
-                    }
-                }
-                if r == RailType::LU || r == RailType::RU || r == RailType::UD {
-                    assert!(p.up().in_range());
-                    if grid_state[p.up().x][p.up().y] != GridState::Empty {
-                        grid_dsu.merge(p.to_idx(), p.up().to_idx());
-                    }
-                }
-                if r == RailType::LD || r == RailType::RD || r == RailType::UD {
-                    assert!(p.down().in_range());
-                    if grid_state[p.down().x][p.down().y] != GridState::Empty {
-                        grid_dsu.merge(p.to_idx(), p.down().to_idx());
-                    }
-                }
-
                 k -= COST_RAIL;
             } else {
                 k += income;
                 ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
                 continue;
+            }
+
+            if grid_state[i][j].can_conn_left()
+                && p.left().in_range()
+                && grid_state[p.left().x][p.left().y].can_conn_right()
+            {
+                grid_dsu.merge(p.to_idx(), p.left().to_idx());
+            }
+            if grid_state[i][j].can_conn_right()
+                && p.right().in_range()
+                && grid_state[p.right().x][p.right().y].can_conn_left()
+            {
+                grid_dsu.merge(p.to_idx(), p.right().to_idx());
+            }
+            if grid_state[i][j].can_conn_up()
+                && p.up().in_range()
+                && grid_state[p.up().x][p.up().y].can_conn_down()
+            {
+                grid_dsu.merge(p.to_idx(), p.up().to_idx());
+            }
+            if grid_state[i][j].can_conn_down()
+                && p.down().in_range()
+                && grid_state[p.down().x][p.down().y].can_conn_up()
+            {
+                grid_dsu.merge(p.to_idx(), p.down().to_idx());
             }
 
             update_income(
