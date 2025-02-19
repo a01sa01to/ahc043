@@ -426,7 +426,15 @@ fn main() {
         let mut cnt = 0;
         while time.elapsed().as_millis() < 1000 {
             cnt += 1;
-            for _ in 0..3 {
+            if cnt % 300 == 0 {
+                for _ in 0..100 {
+                    let i = rng.gen_range(0..edges.len() - 1);
+                    let (left, right) = edges.split_at_mut(i + 1);
+                    swap(&mut left[i], &mut right[0]);
+                }
+            }
+
+            for _ in 0..5 {
                 let i = rng.gen_range(0..edges.len() - 1);
                 let (left, right) = edges.split_at_mut(i + 1);
                 swap(&mut left[i], &mut right[0]);
