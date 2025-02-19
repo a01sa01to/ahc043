@@ -976,13 +976,10 @@ fn main() {
         let sipos = stations[i].pos;
         let sjpos = stations[j].pos;
         let mut sta_todo = Vec::new();
-        if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
-            build_todo.push_back((RailType::Station, sipos.x, sipos.y));
-            sta_todo.push(i);
-        }
         for (r, p) in todos {
+            // 線路上の駅は先に作っておきたい　かも
             if r == RailType::Station {
-                build_todo.push_back((RailType::Station, p.x, p.y));
+                build_todo.push_front((RailType::Station, p.x, p.y));
                 sta_todo.push(pos2sta[p.x][p.y]);
                 continue;
             }
@@ -1005,6 +1002,10 @@ fn main() {
             } else {
                 build_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
             }
+        }
+        if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
+            build_todo.push_back((RailType::Station, sipos.x, sipos.y));
+            sta_todo.push(i);
         }
         if grid_state[sjpos.x][sjpos.y] != GridState::Station(j) {
             build_todo.push_back((RailType::Station, sjpos.x, sjpos.y));
