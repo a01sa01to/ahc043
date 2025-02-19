@@ -290,16 +290,21 @@ fn find_path(
     next_pos: &Vec<Vec<Vec<Point>>>,
     grid_state: &Vec<Vec<GridState>>,
     pos2sta: &Vec<Vec<usize>>,
-) -> (Vec<usize>, Vec<Point>) {
-    let mut res = (Vec::new(), Vec::new());
+) -> (Vec<(RailType, Point)>, (usize, usize)) {
+    let mut res = Vec::new();
+    let mut num_sta = 0;
+    let mut num_rail = 0;
     let mut now = a;
+
     while now != next_pos[to_sta][now.x][now.y] {
         let nxt = next_pos[to_sta][now.x][now.y];
         if now == a {
             // どうせ駅
             // Do nothing
         } else if grid_state[now.x][now.y] == GridState::Empty {
-            res.1.push(now);
+            // 線路はいったん RailType::None で埋める
+            res.push((RailType::None, now));
+            num_rail += 1;
 
             // Empty Empty なら線路で OK
             if grid_state[nxt.x][nxt.y] == GridState::Empty {
@@ -309,7 +314,8 @@ fn find_path(
             else if pos2sta[nxt.x][nxt.y] != !0
                 && grid_state[nxt.x][nxt.y] != GridState::Station(pos2sta[nxt.x][nxt.y])
             {
-                res.0.push(pos2sta[nxt.x][nxt.y]);
+                res.push((RailType::Station, nxt));
+                num_sta += 1;
             }
         } else {
             // 線路か駅
@@ -319,14 +325,15 @@ fn find_path(
                 && grid_state[now.x][now.y] != GridState::Station(staidx)
                 && grid_state[nxt.x][nxt.y] == GridState::Empty
             {
-                // 駅をつくる
-                res.0.push(staidx);
+                res.push((RailType::Station, now));
+                num_sta += 1;
             }
         }
 
         now = next_pos[to_sta][now.x][now.y];
     }
-    res
+
+    (res, (num_sta, num_rail))
 }
 
 #[fastout]
@@ -749,11 +756,9 @@ fn main() {
     let mut turn = 0;
     let mut income = 0;
     let mut nconnected_peopleidx = collections::HashSet::new();
-    let mut rail_todo = collections::VecDeque::new();
-    let mut station_todo = collections::VecDeque::new();
+    let mut build_todo = collections::VecDeque::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
-    let mut built_station = collections::HashSet::new();
     let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
         .map(|_| {
             (0..stations.len())
@@ -779,71 +784,61 @@ fn main() {
     while turn < T {
         turn += 1;
 
-        if !station_todo.is_empty() && k >= COST_STATION {
-            let i = station_todo.pop_front().unwrap();
-            let s: &Station = &stations[i];
-
-            grid_state[s.pos.x][s.pos.y] = GridState::Station(i);
-            built_station.insert(i);
-            for &q in &[s.pos.left(), s.pos.right(), s.pos.up(), s.pos.down()] {
-                if !q.in_range() {
-                    continue;
-                }
-                if grid_state[q.x][q.y] != GridState::Empty {
-                    grid_dsu.merge(s.pos.to_idx(), q.to_idx());
-                }
-            }
-            update_income(
-                &mut income,
-                &mut nconnected_peopleidx,
-                &people,
-                &mut grid_dsu,
-                &grid_state,
-                &pos2sta,
-            );
-
-            k -= COST_STATION;
-            k += income;
-
-            ans[turn - 1] = ((RailType::Station, s.pos), (k, income));
-            continue;
-        }
-
-        if !station_todo.is_empty() {
-            k += income;
-            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
-            continue;
-        }
-
-        if !rail_todo.is_empty() && k >= COST_RAIL {
-            let (t, i, j) = rail_todo.pop_front().unwrap();
+        if !build_todo.is_empty() {
+            let &(r, i, j) = build_todo.front().unwrap();
             let p = Point::new(i, j);
+            assert!(p.in_range());
+            assert_ne!(r, RailType::None);
 
-            grid_state[i][j] = GridState::Rail(t);
-            if t == RailType::LD || t == RailType::LR || t == RailType::LU {
-                assert!(p.left().in_range());
-                if grid_state[p.left().x][p.left().y] != GridState::Empty {
-                    grid_dsu.merge(p.to_idx(), p.left().to_idx());
+            if r == RailType::Station && k >= COST_STATION {
+                build_todo.pop_front();
+                let staidx = pos2sta[i][j];
+                assert_ne!(staidx, !0);
+                grid_state[i][j] = GridState::Station(staidx);
+
+                for &q in &[p.left(), p.right(), p.up(), p.down()] {
+                    if q.in_range() && grid_state[q.x][q.y] != GridState::Empty {
+                        grid_dsu.merge(p.to_idx(), q.to_idx());
+                    }
                 }
-            }
-            if t == RailType::RD || t == RailType::LR || t == RailType::RU {
-                assert!(p.right().in_range());
-                if grid_state[p.right().x][p.right().y] != GridState::Empty {
-                    grid_dsu.merge(p.to_idx(), p.right().to_idx());
+
+                k -= COST_STATION;
+            } else if r != RailType::Station && k >= COST_RAIL {
+                build_todo.pop_front();
+                grid_state[i][j] = GridState::Rail(r);
+
+                if r == RailType::LD || r == RailType::LR || r == RailType::LU {
+                    assert!(p.left().in_range());
+                    if grid_state[p.left().x][p.left().y] != GridState::Empty {
+                        grid_dsu.merge(p.to_idx(), p.left().to_idx());
+                    }
                 }
-            }
-            if t == RailType::LU || t == RailType::RU || t == RailType::UD {
-                assert!(p.up().in_range());
-                if grid_state[p.up().x][p.up().y] != GridState::Empty {
-                    grid_dsu.merge(p.to_idx(), p.up().to_idx());
+                if r == RailType::RD || r == RailType::LR || r == RailType::RU {
+                    assert!(p.right().in_range());
+                    if grid_state[p.right().x][p.right().y] != GridState::Empty {
+                        grid_dsu.merge(p.to_idx(), p.right().to_idx());
+                    }
                 }
-            }
-            if t == RailType::LD || t == RailType::RD || t == RailType::UD {
-                assert!(p.down().in_range());
-                if grid_state[p.down().x][p.down().y] != GridState::Empty {
-                    grid_dsu.merge(p.to_idx(), p.down().to_idx());
+                if r == RailType::LU || r == RailType::RU || r == RailType::UD {
+                    assert!(p.up().in_range());
+                    if grid_state[p.up().x][p.up().y] != GridState::Empty {
+                        grid_dsu.merge(p.to_idx(), p.up().to_idx());
+                    }
                 }
+                if r == RailType::LD || r == RailType::RD || r == RailType::UD {
+                    assert!(p.down().in_range());
+                    if grid_state[p.down().x][p.down().y] != GridState::Empty {
+                        grid_dsu.merge(p.to_idx(), p.down().to_idx());
+                    }
+                }
+
+                k -= COST_RAIL;
+            } else {
+                k += income;
+                ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
+                continue;
             }
+
             update_income(
                 &mut income,
                 &mut nconnected_peopleidx,
@@ -853,16 +848,9 @@ fn main() {
                 &pos2sta,
             );
 
-            k -= COST_RAIL;
             k += income;
 
-            ans[turn - 1] = ((t, p), (k, income));
-            continue;
-        }
-
-        if !rail_todo.is_empty() || !station_todo.is_empty() {
-            k += income;
-            ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
+            ans[turn - 1] = ((r, p), (k, income));
             continue;
         }
 
@@ -872,7 +860,7 @@ fn main() {
                 let mut profit = 0;
 
                 let (cost, need_build_turn) = {
-                    let (addsta, addpath) =
+                    let (_, (addsta, addpath)) =
                         find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
 
                     let mut nexista = 0;
@@ -884,9 +872,8 @@ fn main() {
                     }
 
                     (
-                        ((addsta.len() + nexista) * COST_STATION + addpath.len() * COST_RAIL)
-                            as i32,
-                        (addsta.len() + addpath.len()) as i32,
+                        ((addsta + nexista) * COST_STATION + addpath * COST_RAIL) as i32,
+                        (addsta + addpath) as i32,
                     )
                 };
                 let need_wait_turn = if income == 0 {
@@ -927,30 +914,23 @@ fn main() {
         let (_, i, j) = best;
         turn -= 1; // 上のほうの処理に任せるため
 
-        let (sta, path) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+        let (todos, _) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
         let sipos = stations[i].pos;
         let sjpos = stations[j].pos;
+        let mut sta_todo = Vec::new();
         if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
-            station_todo.push_back(i);
+            build_todo.push_back((RailType::Station, sipos.x, sipos.y));
+            sta_todo.push(i);
         }
-        if grid_state[sjpos.x][sjpos.y] != GridState::Station(j) {
-            station_todo.push_back(j);
-        }
-        for &s in &sta {
-            station_todo.push_back(s);
-        }
-        for ii in 0..stations.len() {
-            for ji in ii + 1..stations.len() {
-                dsu4stapair[ii][ji].merge(i, j);
-                if station_todo.len() > 1 {
-                    for idx in 0..station_todo.len() - 1 {
-                        dsu4stapair[ii][ji].merge(station_todo[idx], station_todo[idx + 1]);
-                    }
-                }
+        for (r, p) in todos {
+            if r == RailType::Station {
+                build_todo.push_back((RailType::Station, p.x, p.y));
+                sta_todo.push(pos2sta[p.x][p.y]);
+                continue;
             }
-        }
 
-        for p in path.iter() {
+            assert_eq!(r, RailType::None);
+
             if target_grid[p.x][p.y] == '#' {
                 let mut mask = 0usize;
                 for &(q, msk) in &[
@@ -963,9 +943,23 @@ fn main() {
                         mask |= msk;
                     }
                 }
-                rail_todo.push_back((RailType::from_mask(mask), p.x, p.y));
+                build_todo.push_back((RailType::from_mask(mask), p.x, p.y));
             } else {
-                rail_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
+                build_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
+            }
+        }
+        if grid_state[sjpos.x][sjpos.y] != GridState::Station(j) {
+            build_todo.push_back((RailType::Station, sjpos.x, sjpos.y));
+            sta_todo.push(j);
+        }
+        for ii in 0..stations.len() {
+            for ji in ii + 1..stations.len() {
+                dsu4stapair[ii][ji].merge(i, j);
+                if sta_todo.len() > 1 {
+                    for idx in 0..sta_todo.len() - 1 {
+                        dsu4stapair[ii][ji].merge(sta_todo[idx], sta_todo[idx + 1]);
+                    }
+                }
             }
         }
     }
