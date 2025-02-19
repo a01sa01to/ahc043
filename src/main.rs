@@ -48,6 +48,54 @@ enum RailType {
     RU = 5,
     RD = 6,
 }
+impl RailType {
+    fn from_char(c: char) -> Self {
+        match c {
+            '#' => Self::Station,
+            '-' => Self::LR,
+            '|' => Self::UD,
+            '\\' => Self::LD,
+            'J' => Self::LU,
+            'L' => Self::RU,
+            '/' => Self::RD,
+            _ => unreachable!(),
+        }
+    }
+    fn to_char(&self) -> char {
+        match self {
+            RailType::None => unreachable!(),
+            RailType::Station => '#',
+            RailType::LR => '-',
+            RailType::UD => '|',
+            RailType::LD => '\\',
+            RailType::LU => 'J',
+            RailType::RU => 'L',
+            RailType::RD => '/',
+        }
+    }
+    fn from_mask(mask: usize) -> Self {
+        assert!(mask.count_ones() == 2);
+        if mask == (MASK_L | MASK_R) {
+            return Self::LR;
+        }
+        if mask == (MASK_U | MASK_D) {
+            return Self::UD;
+        }
+        if mask == (MASK_L | MASK_D) {
+            return Self::LD;
+        }
+        if mask == (MASK_L | MASK_U) {
+            return Self::LU;
+        }
+        if mask == (MASK_R | MASK_U) {
+            return Self::RU;
+        }
+        if mask == (MASK_R | MASK_D) {
+            return Self::RD;
+        }
+        unreachable!();
+    }
+}
 impl fmt::Display for RailType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -514,24 +562,7 @@ fn main() {
                                 mask |= msk;
                             }
                         }
-
-                        assert_eq!(mask.count_ones(), 2);
-
-                        if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
-                            cur[now_pos.x][now_pos.y] = '-';
-                        } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
-                            cur[now_pos.x][now_pos.y] = '|';
-                        } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
-                            cur[now_pos.x][now_pos.y] = '\\';
-                        } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
-                            cur[now_pos.x][now_pos.y] = 'J'
-                        } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
-                            cur[now_pos.x][now_pos.y] = 'L'
-                        } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
-                            cur[now_pos.x][now_pos.y] = '/';
-                        } else {
-                            unreachable!();
-                        }
+                        cur[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
                     }
 
                     prv_pos = now_pos;
@@ -632,25 +663,25 @@ fn main() {
                     }
                     let p = Point::new(i, j);
                     let mut cand = Vec::new();
-                    if target_grid[i][j] == '#' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::Station {
                         cand = vec![p.left(), p.right(), p.up(), p.down()];
                     }
-                    if target_grid[i][j] == '-' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::LR {
                         cand = vec![p.left(), p.right()];
                     }
-                    if target_grid[i][j] == '|' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::UD {
                         cand = vec![p.up(), p.down()];
                     }
-                    if target_grid[i][j] == 'L' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::RU {
                         cand = vec![p.right(), p.up()];
                     }
-                    if target_grid[i][j] == 'J' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::LU {
                         cand = vec![p.left(), p.up()];
                     }
-                    if target_grid[i][j] == '\\' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::LD {
                         cand = vec![p.left(), p.down()];
                     }
-                    if target_grid[i][j] == '/' {
+                    if RailType::from_char(target_grid[i][j]) == RailType::RD {
                         cand = vec![p.right(), p.down()];
                     }
                     for &q in &cand {
@@ -932,40 +963,9 @@ fn main() {
                         mask |= msk;
                     }
                 }
-
-                assert_eq!(mask.count_ones(), 2);
-
-                if (mask & MASK_L) != 0 && (mask & MASK_R) != 0 {
-                    rail_todo.push_back((RailType::LR, p.x, p.y));
-                } else if (mask & MASK_U) != 0 && (mask & MASK_D) != 0 {
-                    rail_todo.push_back((RailType::UD, p.x, p.y));
-                } else if (mask & MASK_L) != 0 && (mask & MASK_D) != 0 {
-                    rail_todo.push_back((RailType::LD, p.x, p.y));
-                } else if (mask & MASK_L) != 0 && (mask & MASK_U) != 0 {
-                    rail_todo.push_back((RailType::LU, p.x, p.y));
-                } else if (mask & MASK_R) != 0 && (mask & MASK_U) != 0 {
-                    rail_todo.push_back((RailType::RU, p.x, p.y));
-                } else if (mask & MASK_R) != 0 && (mask & MASK_D) != 0 {
-                    rail_todo.push_back((RailType::RD, p.x, p.y));
-                } else {
-                    unreachable!();
-                }
+                rail_todo.push_back((RailType::from_mask(mask), p.x, p.y));
             } else {
-                if target_grid[p.x][p.y] == '-' {
-                    rail_todo.push_back((RailType::LR, p.x, p.y));
-                } else if target_grid[p.x][p.y] == '|' {
-                    rail_todo.push_back((RailType::UD, p.x, p.y));
-                } else if target_grid[p.x][p.y] == '\\' {
-                    rail_todo.push_back((RailType::LD, p.x, p.y));
-                } else if target_grid[p.x][p.y] == 'J' {
-                    rail_todo.push_back((RailType::LU, p.x, p.y));
-                } else if target_grid[p.x][p.y] == 'L' {
-                    rail_todo.push_back((RailType::RU, p.x, p.y));
-                } else if target_grid[p.x][p.y] == '/' {
-                    rail_todo.push_back((RailType::RD, p.x, p.y));
-                } else {
-                    unreachable!();
-                }
+                rail_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
             }
         }
     }
