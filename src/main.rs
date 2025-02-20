@@ -1384,17 +1384,17 @@ fn main() {
         // }
     }
 
-    // // 最終的に待ったほうがいいなら Revert
-    // for t in (0..T).rev() {
-    //     if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
-    //         for x in t + 1..T {
-    //             ans[x] = (
-    //                 (RailType::None, Point::new(!0, !0)),
-    //                 (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
-    //             );
-    //         }
-    //     }
-    // }
+    // 最終的に待ったほうがいいなら Revert
+    for t in (0..T).rev() {
+        if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
+            for x in t + 1..T {
+                ans[x] = (
+                    (RailType::None, Point::new(!0, !0)),
+                    (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
+                );
+            }
+        }
+    }
 
     output(&ans);
 }
