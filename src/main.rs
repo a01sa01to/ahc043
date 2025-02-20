@@ -603,8 +603,6 @@ fn main() {
                 continue;
             }
 
-            build_todo.push_back((RailType::Station, p.x, p.y));
-
             // 復元
             let mut now_pos = target;
             let mut prv_pos = target;
@@ -649,6 +647,7 @@ fn main() {
             }
             target_grid[p.x][p.y] = '#';
             target_grid[target.x][target.y] = '#';
+            build_todo.push_back((RailType::Station, p.x, p.y));
 
             for i in 0..N {
                 for j in 0..N {
