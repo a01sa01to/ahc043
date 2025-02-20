@@ -784,206 +784,206 @@ fn main() {
     }
 
     // let mut stations = Vec::new();
-    {
-        let mut used = vec![vec![false; N]; N];
+    // {
+    //     let mut used = vec![vec![false; N]; N];
 
-        let mut used_home = vec![false; m];
-        let mut used_work = vec![false; m];
+    //     let mut used_home = vec![false; m];
+    //     let mut used_work = vec![false; m];
 
-        let mut pq = Vec::new();
-        for x in 0..N {
-            for y in 0..N {
-                pq.push(get_station(
-                    x,
-                    y,
-                    &people,
-                    &grid_to_peopleidx,
-                    &used_home,
-                    &used_work,
-                ));
-            }
-        }
-        pq.sort_by(|a, b| a.sum_users().cmp(&b.sum_users()));
-        while !pq.is_empty() {
-            let s = pq.pop().unwrap();
-            stations.push(s);
-            for (dx, dy) in MANHATTAN_2_LIST {
-                let nx = s.pos.x as i32 + dx;
-                let ny = s.pos.y as i32 + dy;
-                if !in_range(nx, ny) {
-                    continue;
-                }
-                used[nx as usize][ny as usize] = true;
-                let p = Point::new(nx as usize, ny as usize);
-                for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
-                    if people[i].home == p {
-                        used_home[i] = true;
-                    }
-                    if people[i].work == p {
-                        used_work[i] = true;
-                    }
-                }
-            }
-            for sta in pq.iter_mut() {
-                *sta = get_station(
-                    sta.pos.x,
-                    sta.pos.y,
-                    &people,
-                    &grid_to_peopleidx,
-                    &used_home,
-                    &used_work,
-                );
-                for (dx, dy) in MANHATTAN_2_LIST {
-                    let nx = sta.pos.x as i32 + dx;
-                    let ny = sta.pos.y as i32 + dy;
-                    if !in_range(nx, ny) {
-                        continue;
-                    }
-                    if used[nx as usize][ny as usize] {
-                        sta.num_new_users = 0;
-                        sta.num_known_users = 0;
-                    }
-                }
-            }
-            pq.sort_by(|a, b| a.sum_users().cmp(&b.sum_users()));
-            pq.reverse();
-            while !pq.is_empty() && pq.last().unwrap().sum_users() == 0 {
-                pq.pop();
-            }
-            pq.reverse();
-        }
-    }
+    //     let mut pq = Vec::new();
+    //     for x in 0..N {
+    //         for y in 0..N {
+    //             pq.push(get_station(
+    //                 x,
+    //                 y,
+    //                 &people,
+    //                 &grid_to_peopleidx,
+    //                 &used_home,
+    //                 &used_work,
+    //             ));
+    //         }
+    //     }
+    //     pq.sort_by(|a, b| a.sum_users().cmp(&b.sum_users()));
+    //     while !pq.is_empty() {
+    //         let s = pq.pop().unwrap();
+    //         stations.push(s);
+    //         for (dx, dy) in MANHATTAN_2_LIST {
+    //             let nx = s.pos.x as i32 + dx;
+    //             let ny = s.pos.y as i32 + dy;
+    //             if !in_range(nx, ny) {
+    //                 continue;
+    //             }
+    //             used[nx as usize][ny as usize] = true;
+    //             let p = Point::new(nx as usize, ny as usize);
+    //             for &i in &grid_to_peopleidx[nx as usize][ny as usize] {
+    //                 if people[i].home == p {
+    //                     used_home[i] = true;
+    //                 }
+    //                 if people[i].work == p {
+    //                     used_work[i] = true;
+    //                 }
+    //             }
+    //         }
+    //         for sta in pq.iter_mut() {
+    //             *sta = get_station(
+    //                 sta.pos.x,
+    //                 sta.pos.y,
+    //                 &people,
+    //                 &grid_to_peopleidx,
+    //                 &used_home,
+    //                 &used_work,
+    //             );
+    //             for (dx, dy) in MANHATTAN_2_LIST {
+    //                 let nx = sta.pos.x as i32 + dx;
+    //                 let ny = sta.pos.y as i32 + dy;
+    //                 if !in_range(nx, ny) {
+    //                     continue;
+    //                 }
+    //                 if used[nx as usize][ny as usize] {
+    //                     sta.num_new_users = 0;
+    //                     sta.num_known_users = 0;
+    //                 }
+    //             }
+    //         }
+    //         pq.sort_by(|a, b| a.sum_users().cmp(&b.sum_users()));
+    //         pq.reverse();
+    //         while !pq.is_empty() && pq.last().unwrap().sum_users() == 0 {
+    //             pq.pop();
+    //         }
+    //         pq.reverse();
+    //     }
+    // }
 
-    eprintln!("Time for finding station: {}ms", time.elapsed().as_millis());
-    eprintln!("# of stations: {}", stations.len());
+    // eprintln!("Time for finding station: {}ms", time.elapsed().as_millis());
+    // eprintln!("# of stations: {}", stations.len());
 
-    // グラフを構築
-    {
-        let mut edges = {
-            let mut res = Vec::new();
-            for i in 0..stations.len() {
-                for j in i + 1..stations.len() {
-                    let d = manhattan_distance(&stations[i].pos, &stations[j].pos);
-                    res.push((d, (i, j)));
-                }
-            }
-            res.sort();
-            res
-        };
+    // // グラフを構築
+    // {
+    //     let mut edges = {
+    //         let mut res = Vec::new();
+    //         for i in 0..stations.len() {
+    //             for j in i + 1..stations.len() {
+    //                 let d = manhattan_distance(&stations[i].pos, &stations[j].pos);
+    //                 res.push((d, (i, j)));
+    //             }
+    //         }
+    //         res.sort();
+    //         res
+    //     };
 
-        // 山登り
-        let mut best_score = INF;
-        let mut cnt = 0;
-        while time.elapsed().as_millis() < 1000 {
-            cnt += 1;
-            if cnt % 300 == 0 {
-                for _ in 0..100 {
-                    let i = rng.gen_range(0..edges.len() - 1);
-                    let (left, right) = edges.split_at_mut(i + 1);
-                    swap(&mut left[i], &mut right[0]);
-                }
-            }
+    //     // 山登り
+    //     let mut best_score = INF;
+    //     let mut cnt = 0;
+    //     while time.elapsed().as_millis() < 1000 {
+    //         cnt += 1;
+    //         if cnt % 300 == 0 {
+    //             for _ in 0..100 {
+    //                 let i = rng.gen_range(0..edges.len() - 1);
+    //                 let (left, right) = edges.split_at_mut(i + 1);
+    //                 swap(&mut left[i], &mut right[0]);
+    //             }
+    //         }
 
-            for _ in 0..5 {
-                let i = rng.gen_range(0..edges.len() - 1);
-                let (left, right) = edges.split_at_mut(i + 1);
-                swap(&mut left[i], &mut right[0]);
-            }
+    //         for _ in 0..5 {
+    //             let i = rng.gen_range(0..edges.len() - 1);
+    //             let (left, right) = edges.split_at_mut(i + 1);
+    //             swap(&mut left[i], &mut right[0]);
+    //         }
 
-            let mut cur = vec![vec!['.'; N]; N];
-            let mut score = 0;
-            let mut d = ac_library::Dsu::new(stations.len());
-            let mut groups_cnt = stations.len();
-            for (_dst, (i, j)) in &edges {
-                if groups_cnt == 1 {
-                    break;
-                }
-                if d.same(*i, *j) {
-                    continue;
-                }
+    //         let mut cur = vec![vec!['.'; N]; N];
+    //         let mut score = 0;
+    //         let mut d = ac_library::Dsu::new(stations.len());
+    //         let mut groups_cnt = stations.len();
+    //         for (_dst, (i, j)) in &edges {
+    //             if groups_cnt == 1 {
+    //                 break;
+    //             }
+    //             if d.same(*i, *j) {
+    //                 continue;
+    //             }
 
-                // BFS
-                let mut grid_dist = vec![vec![INF; N]; N];
-                let mut que = collections::VecDeque::new();
-                que.push_back(stations[*i].pos);
-                grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
-                while !que.is_empty() {
-                    let p = que.pop_front().unwrap();
-                    if p == stations[*j].pos {
-                        break;
-                    }
-                    for &q in &[p.left(), p.right(), p.up(), p.down()] {
-                        if !q.in_range()
-                            || grid_dist[q.x][q.y] != INF
-                            || (cur[q.x][q.y] != '.' && cur[q.x][q.y] != '#')
-                        {
-                            continue;
-                        }
-                        grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
-                        que.push_back(q);
-                    }
-                }
-                if grid_dist[stations[*j].pos.x][stations[*j].pos.y] == INF {
-                    continue;
-                }
-                score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
+    //             // BFS
+    //             let mut grid_dist = vec![vec![INF; N]; N];
+    //             let mut que = collections::VecDeque::new();
+    //             que.push_back(stations[*i].pos);
+    //             grid_dist[stations[*i].pos.x][stations[*i].pos.y] = 0;
+    //             while !que.is_empty() {
+    //                 let p = que.pop_front().unwrap();
+    //                 if p == stations[*j].pos {
+    //                     break;
+    //                 }
+    //                 for &q in &[p.left(), p.right(), p.up(), p.down()] {
+    //                     if !q.in_range()
+    //                         || grid_dist[q.x][q.y] != INF
+    //                         || (cur[q.x][q.y] != '.' && cur[q.x][q.y] != '#')
+    //                     {
+    //                         continue;
+    //                     }
+    //                     grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+    //                     que.push_back(q);
+    //                 }
+    //             }
+    //             if grid_dist[stations[*j].pos.x][stations[*j].pos.y] == INF {
+    //                 continue;
+    //             }
+    //             score += grid_dist[stations[*j].pos.x][stations[*j].pos.y];
 
-                let mut now_pos = stations[*j].pos;
-                let mut prv_pos = stations[*j].pos;
-                while now_pos != stations[*i].pos {
-                    let mut next_pos = now_pos;
-                    let mut cand = vec![
-                        now_pos.left(),
-                        now_pos.right(),
-                        now_pos.up(),
-                        now_pos.down(),
-                    ];
-                    cand.shuffle(&mut rng);
-                    for &q in &cand {
-                        if !q.in_range() {
-                            continue;
-                        }
-                        if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
-                            next_pos = q;
-                        }
-                    }
-                    assert_ne!(next_pos, now_pos);
+    //             let mut now_pos = stations[*j].pos;
+    //             let mut prv_pos = stations[*j].pos;
+    //             while now_pos != stations[*i].pos {
+    //                 let mut next_pos = now_pos;
+    //                 let mut cand = vec![
+    //                     now_pos.left(),
+    //                     now_pos.right(),
+    //                     now_pos.up(),
+    //                     now_pos.down(),
+    //                 ];
+    //                 cand.shuffle(&mut rng);
+    //                 for &q in &cand {
+    //                     if !q.in_range() {
+    //                         continue;
+    //                     }
+    //                     if grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+    //                         next_pos = q;
+    //                     }
+    //                 }
+    //                 assert_ne!(next_pos, now_pos);
 
-                    if cur[now_pos.x][now_pos.y] == '#' {
-                        cur[now_pos.x][now_pos.y] = '#';
-                    } else if prv_pos != now_pos {
-                        // どの向きにつながるか
-                        let mut mask = 0usize;
-                        for &(q, msk) in &[
-                            (now_pos.left(), MASK_L),
-                            (now_pos.right(), MASK_R),
-                            (now_pos.up(), MASK_U),
-                            (now_pos.down(), MASK_D),
-                        ] {
-                            if q == prv_pos || q == next_pos {
-                                mask |= msk;
-                            }
-                        }
-                        cur[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
-                    }
+    //                 if cur[now_pos.x][now_pos.y] == '#' {
+    //                     cur[now_pos.x][now_pos.y] = '#';
+    //                 } else if prv_pos != now_pos {
+    //                     // どの向きにつながるか
+    //                     let mut mask = 0usize;
+    //                     for &(q, msk) in &[
+    //                         (now_pos.left(), MASK_L),
+    //                         (now_pos.right(), MASK_R),
+    //                         (now_pos.up(), MASK_U),
+    //                         (now_pos.down(), MASK_D),
+    //                     ] {
+    //                         if q == prv_pos || q == next_pos {
+    //                             mask |= msk;
+    //                         }
+    //                     }
+    //                     cur[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
+    //                 }
 
-                    prv_pos = now_pos;
-                    now_pos = next_pos;
-                }
-                cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
-                cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
+    //                 prv_pos = now_pos;
+    //                 now_pos = next_pos;
+    //             }
+    //             cur[stations[*i].pos.x][stations[*i].pos.y] = '#';
+    //             cur[stations[*j].pos.x][stations[*j].pos.y] = '#';
 
-                d.merge(*i, *j);
-                groups_cnt -= 1;
-            }
-            if score < best_score {
-                best_score = score;
-                target_grid = cur;
-            }
-        }
-        eprintln!("cnt: {}", cnt);
-        eprintln!("Score: {}", best_score);
-    }
+    //             d.merge(*i, *j);
+    //             groups_cnt -= 1;
+    //         }
+    //         if score < best_score {
+    //             best_score = score;
+    //             target_grid = cur;
+    //         }
+    //     }
+    //     eprintln!("cnt: {}", cnt);
+    //     eprintln!("Score: {}", best_score);
+    // }
 
     // {
     //     let mut sta_unused = Vec::new();
@@ -1005,89 +1005,157 @@ fn main() {
         for i in 0..N {
             for j in 0..N {
                 if target_grid[i][j] == '#' {
-                    res.push(Station::new(Point::new(i, j);
-                    let mut cand = Vec::new();
-                    if RailType::from_char(target_grid[i][j]) == RailType::Station {
-                        cand = vec![p.left(), p.right(), p.up(), p.down()];
+                    res.push(Station::new(Point::new(i, j), 0, 0));
+                }
+            }
+        }
+        res
+    };
+
+    let people2sta = {
+        let mut res = vec![(Vec::new(), Vec::new()); m];
+        for (i, p) in people.iter().enumerate() {
+            for (j, s) in stations.iter().enumerate() {
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = s.pos.x as i32 + dx;
+                    let ny = s.pos.y as i32 + dy;
+                    let po = Point::new(nx as usize, ny as usize);
+                    if po.in_range() && p.home == po {
+                        res[i].0.push(j);
                     }
-                    if RailType::from_char(target_grid[i][j]) == RailType::LR {
-                        cand = vec![p.left(), p.right()];
-                    }
-                    if RailType::from_char(target_grid[i][j]) == RailType::UD {
-                        cand = vec![p.up(), p.down()];
-                    }
-                    if RailType::from_char(target_grid[i][j]) == RailType::RU {
-                        cand = vec![p.right(), p.up()];
-                    }
-                    if RailType::from_char(target_grid[i][j]) == RailType::LU {
-                        cand = vec![p.left(), p.up()];
-                    }
-                    if RailType::from_char(target_grid[i][j]) == RailType::LD {
-                        cand = vec![p.left(), p.down()];
-                    }
-                    if RailType::from_char(target_grid[i][j]) == RailType::RD {
-                        cand = vec![p.right(), p.down()];
-                    }
-                    for &q in &cand {
-                        if q.in_range() && target_grid[q.x][q.y] != '.' {
-                            res[p.x][p.y].push(q);
-                        }
+                    if po.in_range() && p.work == po {
+                        res[i].1.push(j);
                     }
                 }
             }
-            res
-        };
+        }
+        res
+    };
+    // let sta2users = {
+    //     let mut res = vec![Vec::new(); stations.len()];
+    //     for i in 0..stations.len() {
+    //         for j in 0..m {
+    //             if people2sta[j].0 == !0 || people2sta[j].1 == !0 {
+    //                 continue;
+    //             }
+    //             if people2sta[j].0 == i || people2sta[j].1 == i {
+    //                 res[i].push(j);
+    //             }
+    //         }
+    //     }
+    //     res
+    // };
 
+    // eprintln!("Time for building graph: {}ms", time.elapsed().as_millis());
+    // eprintln!("Target Grid:");
+    // for i in 0..N {
+    //     for j in 0..N {
+    //         eprint!("{}", target_grid[i][j]);
+    //     }
+    //     eprintln!();
+    // }
+
+    // // target grid から dist と next_pos を作る
+    // let mut dist = vec![vec![INF; stations.len()]; stations.len()];
+    // let mut next_pos = vec![vec![vec![Point::new(!0, !0); N]; N]; stations.len()];
+    let pos2sta = {
+        let mut res = vec![vec![!0; N]; N];
         for (i, s) in stations.iter().enumerate() {
-            dist[i][i] = 0;
-            next_pos[i][s.pos.x][s.pos.y] = s.pos;
-
-            let mut grid_dist = vec![vec![INF; N]; N];
-            let mut que = collections::VecDeque::new();
-            que.push_back(s.pos);
-            grid_dist[s.pos.x][s.pos.y] = 0;
-            while !que.is_empty() {
-                let p = que.pop_front().unwrap();
-                assert!(p.in_range());
-                assert!(next_pos[i][p.x][p.y].in_range());
-                for &q in &graph[p.x][p.y] {
-                    assert!(q.in_range());
-                    assert_ne!(target_grid[q.x][q.y], '.');
-                    if grid_dist[q.x][q.y] == INF {
-                        grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
-                        // 木になってるので次の位置は一意に定まる
-                        next_pos[i][q.x][q.y] = p;
-                        que.push_back(q);
-                        if target_grid[q.x][q.y] == '#' {
-                            assert_ne!(pos2sta[q.x][q.y], !0);
-                            let j = pos2sta[q.x][q.y];
-                            dist[i][j] = grid_dist[q.x][q.y];
-                        }
-                    }
-                }
-            }
+            res[s.pos.x][s.pos.y] = i;
         }
-    }
+        res
+    };
+    // {
+    //     let graph = {
+    //         let mut res = vec![vec![Vec::new(); N]; N];
+    //         for i in 0..N {
+    //             for j in 0..N {
+    //                 if target_grid[i][j] == '.' {
+    //                     continue;
+    //                 }
+    //                 let p = Point::new(i, j);
+    //                 let mut cand = Vec::new();
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::Station {
+    //                     cand = vec![p.left(), p.right(), p.up(), p.down()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::LR {
+    //                     cand = vec![p.left(), p.right()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::UD {
+    //                     cand = vec![p.up(), p.down()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::RU {
+    //                     cand = vec![p.right(), p.up()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::LU {
+    //                     cand = vec![p.left(), p.up()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::LD {
+    //                     cand = vec![p.left(), p.down()];
+    //                 }
+    //                 if RailType::from_char(target_grid[i][j]) == RailType::RD {
+    //                     cand = vec![p.right(), p.down()];
+    //                 }
+    //                 for &q in &cand {
+    //                     if q.in_range() && target_grid[q.x][q.y] != '.' {
+    //                         res[p.x][p.y].push(q);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         res
+    //     };
 
-    for i in 0..stations.len() {
-        for j in 0..stations.len() {
-            assert_ne!(
-                dist[i][j], INF,
-                "Sta{}{} -> Sta{}{}",
-                i, stations[i].pos, j, stations[j].pos
-            );
-        }
-    }
+    //     for (i, s) in stations.iter().enumerate() {
+    //         dist[i][i] = 0;
+    //         next_pos[i][s.pos.x][s.pos.y] = s.pos;
 
-    for i in 0..N {
-        for j in 0..N {
-            if target_grid[i][j] != '.' {
-                for s in 0..stations.len() {
-                    assert_ne!(next_pos[s][i][j], Point::new(!0, !0), "{} {} {}", i, j, s);
-                }
-            }
-        }
-    }
+    //         let mut grid_dist = vec![vec![INF; N]; N];
+    //         let mut que = collections::VecDeque::new();
+    //         que.push_back(s.pos);
+    //         grid_dist[s.pos.x][s.pos.y] = 0;
+    //         while !que.is_empty() {
+    //             let p = que.pop_front().unwrap();
+    //             assert!(p.in_range());
+    //             assert!(next_pos[i][p.x][p.y].in_range());
+    //             for &q in &graph[p.x][p.y] {
+    //                 assert!(q.in_range());
+    //                 assert_ne!(target_grid[q.x][q.y], '.');
+    //                 if grid_dist[q.x][q.y] == INF {
+    //                     grid_dist[q.x][q.y] = grid_dist[p.x][p.y] + 1;
+    //                     // 木になってるので次の位置は一意に定まる
+    //                     next_pos[i][q.x][q.y] = p;
+    //                     que.push_back(q);
+    //                     if target_grid[q.x][q.y] == '#' {
+    //                         assert_ne!(pos2sta[q.x][q.y], !0);
+    //                         let j = pos2sta[q.x][q.y];
+    //                         dist[i][j] = grid_dist[q.x][q.y];
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // for i in 0..stations.len() {
+    //     for j in 0..stations.len() {
+    //         assert_ne!(
+    //             dist[i][j], INF,
+    //             "Sta{}{} -> Sta{}{}",
+    //             i, stations[i].pos, j, stations[j].pos
+    //         );
+    //     }
+    // }
+
+    // for i in 0..N {
+    //     for j in 0..N {
+    //         if target_grid[i][j] != '.' {
+    //             for s in 0..stations.len() {
+    //                 assert_ne!(next_pos[s][i][j], Point::new(!0, !0), "{} {} {}", i, j, s);
+    //             }
+    //         }
+    //     }
+    // }
 
     // 答えを出すパート
     let mut turn = 0;
@@ -1095,27 +1163,27 @@ fn main() {
     let mut nconnected_peopleidx = collections::HashSet::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
-    let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
-        .map(|_| {
-            (0..stations.len())
-                .map(|_| ac_library::Dsu::new(stations.len()))
-                .collect()
-        })
-        .collect();
+    // let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
+    //     .map(|_| {
+    //         (0..stations.len())
+    //             .map(|_| ac_library::Dsu::new(stations.len()))
+    //             .collect()
+    //     })
+    //     .collect();
 
     // (output, ターン終了時の (money, income))
     let mut ans = vec![((RailType::None, Point::new(!0, !0)), (0, 0)); T];
 
     for i in 0..m {
-        if people2sta[i].0 != !0 && people2sta[i].1 != !0 {
+        if !people2sta[i].0.is_empty() && !people2sta[i].1.is_empty() {
             nconnected_peopleidx.insert(i);
         }
     }
-    for i in 0..stations.len() {
-        for j in i + 1..stations.len() {
-            dsu4stapair[i][j].merge(i, j);
-        }
-    }
+    // for i in 0..stations.len() {
+    //     for j in i + 1..stations.len() {
+    //         dsu4stapair[i][j].merge(i, j);
+    //     }
+    // }
 
     while turn < T {
         turn += 1;
@@ -1182,128 +1250,128 @@ fn main() {
             continue;
         }
 
-        let mut best = (0, !0, !0);
-        for i in 0..stations.len() {
-            for j in i + 1..stations.len() {
-                let mut profit = 0;
+        // let mut best = (0, !0, !0);
+        // for i in 0..stations.len() {
+        //     for j in i + 1..stations.len() {
+        //         let mut profit = 0;
 
-                let (cost, need_build_turn) = {
-                    let (_, (addsta, addpath)) =
-                        find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+        //         let (cost, need_build_turn) = {
+        //             let (_, (addsta, addpath)) =
+        //                 find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
 
-                    let mut nexista = 0;
-                    if grid_state[stations[i].pos.x][stations[i].pos.y] != GridState::Station(i) {
-                        nexista += 1;
-                    }
-                    if grid_state[stations[j].pos.x][stations[j].pos.y] != GridState::Station(j) {
-                        nexista += 1;
-                    }
+        //             let mut nexista = 0;
+        //             if grid_state[stations[i].pos.x][stations[i].pos.y] != GridState::Station(i) {
+        //                 nexista += 1;
+        //             }
+        //             if grid_state[stations[j].pos.x][stations[j].pos.y] != GridState::Station(j) {
+        //                 nexista += 1;
+        //             }
 
-                    (
-                        ((addsta + nexista) * COST_STATION + addpath * COST_RAIL) as i32,
-                        (addsta + addpath) as i32,
-                    )
-                };
-                let need_wait_turn = if income == 0 {
-                    0
-                } else {
-                    (cost as i32 - k as i32 + income as i32 - 1).max(0) / income as i32
-                };
+        //             (
+        //                 ((addsta + nexista) * COST_STATION + addpath * COST_RAIL) as i32,
+        //                 (addsta + addpath) as i32,
+        //             )
+        //         };
+        //         let need_wait_turn = if income == 0 {
+        //             0
+        //         } else {
+        //             (cost as i32 - k as i32 + income as i32 - 1).max(0) / income as i32
+        //         };
 
-                let mut checked = collections::HashSet::new();
-                for &idx in sta2users[i].iter().chain(sta2users[j].iter()) {
-                    if dsu4stapair[i][j].same(people2sta[idx].0, people2sta[idx].1)
-                        && nconnected_peopleidx.contains(&idx)
-                        && !checked.contains(&idx)
-                    {
-                        let p = &people[idx];
-                        profit += p.dist() as i32;
-                        checked.insert(idx);
-                    }
-                }
-                let score =
-                    profit * ((T - (turn - 1)) as i32 - need_build_turn - need_wait_turn) - cost;
-                // turn 1 なら制約付き
-                if score > best.0 && (turn != 1 || k >= dist[i][j] * COST_RAIL + 2 * COST_STATION) {
-                    best = (score, i, j);
-                }
-            }
+        //         let mut checked = collections::HashSet::new();
+        //         for &idx in sta2users[i].iter().chain(sta2users[j].iter()) {
+        //             if dsu4stapair[i][j].same(people2sta[idx].0, people2sta[idx].1)
+        //                 && nconnected_peopleidx.contains(&idx)
+        //                 && !checked.contains(&idx)
+        //             {
+        //                 let p = &people[idx];
+        //                 profit += p.dist() as i32;
+        //                 checked.insert(idx);
+        //             }
+        //         }
+        //         let score =
+        //             profit * ((T - (turn - 1)) as i32 - need_build_turn - need_wait_turn) - cost;
+        //         // turn 1 なら制約付き
+        //         if score > best.0 && (turn != 1 || k >= dist[i][j] * COST_RAIL + 2 * COST_STATION) {
+        //             best = (score, i, j);
+        //         }
+        //     }
+        // }
+        // // どうせ収益が減るならやめる
+        // if best.0 == 0 {
+        for x in turn..=T {
+            k += income;
+            ans[x - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
         }
-        // どうせ収益が減るならやめる
-        if best.0 == 0 {
-            for x in turn..=T {
-                k += income;
-                ans[x - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
-            }
-            break;
-        }
-        assert_ne!(best.1, !0);
+        // break;
+        // }
+        // assert_ne!(best.1, !0);
 
-        let (_, i, j) = best;
-        turn -= 1; // 上のほうの処理に任せるため
+        // let (_, i, j) = best;
+        // turn -= 1; // 上のほうの処理に任せるため
 
-        let (todos, _) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
-        let sipos = stations[i].pos;
-        let sjpos = stations[j].pos;
-        let mut sta_todo = Vec::new();
-        for (r, p) in todos {
-            // 線路上の駅は先に作っておきたい　かも
-            if r == RailType::Station {
-                build_todo.push_front((RailType::Station, p.x, p.y));
-                sta_todo.push(pos2sta[p.x][p.y]);
-                continue;
-            }
+        // let (todos, _) = find_path(stations[i].pos, j, &next_pos, &grid_state, &pos2sta);
+        // let sipos = stations[i].pos;
+        // let sjpos = stations[j].pos;
+        // let mut sta_todo = Vec::new();
+        // for (r, p) in todos {
+        //     // 線路上の駅は先に作っておきたい　かも
+        //     if r == RailType::Station {
+        //         build_todo.push_front((RailType::Station, p.x, p.y));
+        //         sta_todo.push(pos2sta[p.x][p.y]);
+        //         continue;
+        //     }
 
-            assert_eq!(r, RailType::None);
+        //     assert_eq!(r, RailType::None);
 
-            if target_grid[p.x][p.y] == '#' {
-                let mut mask = 0usize;
-                for &(q, msk) in &[
-                    (p.left(), MASK_L),
-                    (p.right(), MASK_R),
-                    (p.up(), MASK_U),
-                    (p.down(), MASK_D),
-                ] {
-                    if q == next_pos[i][p.x][p.y] || q == next_pos[j][p.x][p.y] {
-                        mask |= msk;
-                    }
-                }
-                build_todo.push_back((RailType::from_mask(mask), p.x, p.y));
-            } else {
-                build_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
-            }
-        }
-        if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
-            build_todo.push_back((RailType::Station, sipos.x, sipos.y));
-            sta_todo.push(i);
-        }
-        if grid_state[sjpos.x][sjpos.y] != GridState::Station(j) {
-            build_todo.push_back((RailType::Station, sjpos.x, sjpos.y));
-            sta_todo.push(j);
-        }
-        for ii in 0..stations.len() {
-            for ji in ii + 1..stations.len() {
-                dsu4stapair[ii][ji].merge(i, j);
-                if sta_todo.len() > 1 {
-                    for idx in 0..sta_todo.len() - 1 {
-                        dsu4stapair[ii][ji].merge(sta_todo[idx], sta_todo[idx + 1]);
-                    }
-                }
-            }
-        }
+        //     if target_grid[p.x][p.y] == '#' {
+        //         let mut mask = 0usize;
+        //         for &(q, msk) in &[
+        //             (p.left(), MASK_L),
+        //             (p.right(), MASK_R),
+        //             (p.up(), MASK_U),
+        //             (p.down(), MASK_D),
+        //         ] {
+        //             if q == next_pos[i][p.x][p.y] || q == next_pos[j][p.x][p.y] {
+        //                 mask |= msk;
+        //             }
+        //         }
+        //         build_todo.push_back((RailType::from_mask(mask), p.x, p.y));
+        //     } else {
+        //         build_todo.push_back((RailType::from_char(target_grid[p.x][p.y]), p.x, p.y));
+        //     }
+        // }
+        // if grid_state[sipos.x][sipos.y] != GridState::Station(i) {
+        //     build_todo.push_back((RailType::Station, sipos.x, sipos.y));
+        //     sta_todo.push(i);
+        // }
+        // if grid_state[sjpos.x][sjpos.y] != GridState::Station(j) {
+        //     build_todo.push_back((RailType::Station, sjpos.x, sjpos.y));
+        //     sta_todo.push(j);
+        // }
+        // for ii in 0..stations.len() {
+        //     for ji in ii + 1..stations.len() {
+        //         dsu4stapair[ii][ji].merge(i, j);
+        //         if sta_todo.len() > 1 {
+        //             for idx in 0..sta_todo.len() - 1 {
+        //                 dsu4stapair[ii][ji].merge(sta_todo[idx], sta_todo[idx + 1]);
+        //             }
+        //         }
+        //     }
+        // }
     }
 
-    // 最終的に待ったほうがいいなら Revert
-    for t in (0..T).rev() {
-        if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
-            for x in t + 1..T {
-                ans[x] = (
-                    (RailType::None, Point::new(!0, !0)),
-                    (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
-                );
-            }
-        }
-    }
+    // // 最終的に待ったほうがいいなら Revert
+    // for t in (0..T).rev() {
+    //     if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
+    //         for x in t + 1..T {
+    //             ans[x] = (
+    //                 (RailType::None, Point::new(!0, !0)),
+    //                 (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
+    //             );
+    //         }
+    //     }
+    // }
 
     output(&ans);
 }
