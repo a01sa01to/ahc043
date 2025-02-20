@@ -1,7 +1,7 @@
 extern crate rand;
 use proconio::{fastout, input};
 use rand::seq::SliceRandom;
-use std::{cmp, collections, fmt, time::Instant};
+use std::{cmp, collections, fmt};
 
 const COST_STATION: usize = 5000;
 const COST_RAIL: usize = 100;
@@ -321,7 +321,6 @@ fn output(ans: &Vec<((RailType, Point), (usize, usize))>) {
 }
 
 fn main() {
-    let time = Instant::now();
     let mut rng = rand::thread_rng();
 
     // Input
@@ -411,7 +410,6 @@ fn main() {
             }
         }
         if best.0 > 0 {
-            eprintln!("{:?}", best);
             build_todo.push_back((RailType::Station, best.1.x, best.1.y));
             build_todo.push_back((RailType::Station, best.2.x, best.2.y));
             // TODO: もっと良い方法があるはず (今後駅が建つところを通ったほうがよさそう) だが適当にやる
@@ -460,11 +458,6 @@ fn main() {
             target_grid[best.2.x][best.2.y] = '#';
         }
     }
-    eprintln!(
-        "Time for finding first 2 stations: {}ms",
-        time.elapsed().as_millis()
-    );
-    eprintln!("{:?}", build_todo);
 
     // どんどん駅をつなげていく
     let mut profit_table = vec![vec![0; N]; N];
@@ -724,14 +717,6 @@ fn main() {
         {
             cand_pos.pop();
         }
-    }
-
-    eprintln!("Time for finding path: {}ms", time.elapsed().as_millis());
-    for i in 0..N {
-        for j in 0..N {
-            eprint!("{}", target_grid[i][j]);
-        }
-        eprintln!();
     }
 
     let stations = {
