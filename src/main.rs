@@ -177,7 +177,7 @@ impl fmt::Display for RailType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
 struct Point {
     x: usize,
     y: usize,
@@ -446,11 +446,127 @@ fn main() {
     let grid_to_peopleidx = {
         let mut res = vec![vec![Vec::new(); N]; N];
         for i in 0..m {
-            res[people[i].home.x][people[i].home.y].push(i);
-            res[people[i].work.x][people[i].work.y].push(i);
+            for (dx, dy) in MANHATTAN_2_LIST {
+                let nxh = people[i].home.x as i32 + dx;
+                let nyh = people[i].home.y as i32 + dy;
+                let nxw = people[i].work.x as i32 + dx;
+                let nyw = people[i].work.y as i32 + dy;
+                if in_range(nxh, nyh) {
+                    res[nxh as usize][nyh as usize].push(i);
+                }
+                if in_range(nxw, nyw) {
+                    res[nxw as usize][nyw as usize].push(i);
+                }
+            }
+        }
+        for i in 0..N {
+            for j in 0..N {
+                res[i][j].sort();
+                res[i][j].dedup();
+            }
         }
         res
     };
+
+    let mut build_todo = collections::VecDeque::new();
+    let mut target_grid = vec![vec!['.'; N]; N];
+
+    // 最初の 2 点を決める
+    // 最初の所持金で建設可能なもののうち、収益が最も高いところに建てる
+    {
+        let mut best = (0, Point::new(!0, !0), Point::new(!0, !0));
+        for i in 0..N {
+            for j in 0..N {
+                let p = Point::new(i, j);
+                let mut cand = collections::BTreeMap::new();
+                for &i in &grid_to_peopleidx[i][j] {
+                    let pp = &people[i];
+                    if manhattan_distance(&pp.home, &p) <= 2 {
+                        for (dx, dy) in MANHATTAN_2_LIST {
+                            let nx = pp.work.x as i32 + dx;
+                            let ny = pp.work.y as i32 + dy;
+                            if in_range(nx, ny) {
+                                let q = Point::new(nx as usize, ny as usize);
+                                cand.entry(q).or_insert(0);
+                                *cand.get_mut(&q).unwrap() += pp.dist();
+                            }
+                        }
+                    }
+                    if manhattan_distance(&pp.work, &p) <= 2 {
+                        for (dx, dy) in MANHATTAN_2_LIST {
+                            let nx = pp.home.x as i32 + dx;
+                            let ny = pp.home.y as i32 + dy;
+                            if in_range(nx, ny) {
+                                let q = Point::new(nx as usize, ny as usize);
+                                cand.entry(q).or_insert(0);
+                                *cand.get_mut(&q).unwrap() += pp.dist();
+                            }
+                        }
+                    }
+                }
+                for (q, income) in cand {
+                    if income > best.0
+                        && 2 * COST_STATION + manhattan_distance(&p, &q) as usize * COST_RAIL <= k
+                    {
+                        best = (income, p, q);
+                    }
+                }
+            }
+        }
+        if best.0 > 0 {
+            eprintln!("{:?}", best);
+            build_todo.push_back((RailType::Station, best.1.x, best.1.y));
+            build_todo.push_back((RailType::Station, best.2.x, best.2.y));
+            k -= 2 * COST_STATION + manhattan_distance(&best.1, &best.2) as usize * COST_RAIL;
+            // TODO: もっと良い方法があるはず (今後駅が建つところを通ったほうがよさそう) だが適当にやる
+            let mut now_pos = best.1;
+            let mut prv_pos = best.1;
+            while now_pos != best.2 {
+                let mut next_pos = now_pos;
+                let mut cand = vec![
+                    now_pos.left(),
+                    now_pos.right(),
+                    now_pos.up(),
+                    now_pos.down(),
+                ];
+                cand.shuffle(&mut rng);
+                for &q in &cand {
+                    if manhattan_distance(&q, &best.2) < manhattan_distance(&now_pos, &best.2) {
+                        next_pos = q;
+                        break;
+                    }
+                }
+                assert_ne!(next_pos, now_pos);
+
+                if prv_pos != now_pos {
+                    // どの向きにつながるか
+                    let mut mask = 0usize;
+                    for &(q, msk) in &[
+                        (now_pos.left(), MASK_L),
+                        (now_pos.right(), MASK_R),
+                        (now_pos.up(), MASK_U),
+                        (now_pos.down(), MASK_D),
+                    ] {
+                        if q == prv_pos || q == next_pos {
+                            mask |= msk;
+                        }
+                    }
+                    target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
+                    build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
+                }
+
+                prv_pos = now_pos;
+                now_pos = next_pos;
+            }
+            target_grid[best.1.x][best.1.y] = '#';
+            target_grid[best.2.x][best.2.y] = '#';
+        }
+    }
+    eprintln!(
+        "Time for finding first 2 stations: {}ms",
+        time.elapsed().as_millis()
+    );
+    eprintln!("{:?}", build_todo);
 
     // 駅の場所を決める
     let mut stations = Vec::new();
@@ -528,7 +644,6 @@ fn main() {
     eprintln!("# of stations: {}", stations.len());
 
     // グラフを構築
-    let mut target_grid = vec![vec!['.'; N]; N];
     {
         let mut edges = {
             let mut res = Vec::new();
@@ -822,7 +937,6 @@ fn main() {
     let mut turn = 0;
     let mut income = 0;
     let mut nconnected_peopleidx = collections::HashSet::new();
-    let mut build_todo = collections::VecDeque::new();
     let mut grid_dsu = ac_library::Dsu::new(N * N);
     let mut grid_state = vec![vec![GridState::Empty; N]; N];
     let mut dsu4stapair: Vec<Vec<ac_library::Dsu>> = (0..stations.len())
