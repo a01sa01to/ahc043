@@ -1,7 +1,7 @@
 extern crate rand;
 use proconio::{fastout, input};
 use rand::seq::SliceRandom;
-use std::{collections, fmt};
+use std::{collections, fmt, time};
 
 const COST_STATION: usize = 5000;
 const COST_RAIL: usize = 100;
@@ -235,6 +235,21 @@ fn calc_income(
     res
 }
 
+fn output_grid(ans: &Vec<((GridState, Point), (usize, usize))>) {
+    let mut grid = vec![vec!['.'; N]; N];
+    for &((s, p), _) in ans {
+        if s != GridState::Empty {
+            grid[p.x][p.y] = s.to_char();
+        }
+    }
+    for i in 0..N {
+        for j in 0..N {
+            eprint!("{}", grid[i][j]);
+        }
+        eprintln!();
+    }
+}
+
 #[fastout]
 fn output(ans: &Vec<((GridState, Point), (usize, usize))>) {
     for i in 0..ans.len() {
@@ -250,6 +265,8 @@ fn output(ans: &Vec<((GridState, Point), (usize, usize))>) {
 }
 
 fn main() {
+    let time = time::Instant::now();
+
     // Input
     input! {
         _n: usize,
@@ -277,6 +294,8 @@ fn main() {
         people: &Vec<Person>,
         m: usize,
         k_: usize,
+        num_turn: usize,
+        stations: &Vec<Point>,
     ) -> Vec<((GridState, Point), (usize, usize))> {
         let mut k = k_;
 
@@ -301,6 +320,13 @@ fn main() {
 
         let mut build_todo = collections::VecDeque::new();
         let mut target_grid = vec![vec!['.'; N]; N];
+        let is_station_pos = {
+            let mut res = vec![vec![false; N]; N];
+            for &p in stations.iter() {
+                res[p.x][p.y] = true;
+            }
+            res
+        };
 
         // 最初の 2 点を決める
         // 最初の所持金で建設可能なもののうち、収益が最も高いところに建てる
@@ -348,29 +374,73 @@ fn main() {
             if best.0 > 0 {
                 build_todo.push_back((GridState::Station, best.1.x, best.1.y));
                 build_todo.push_back((GridState::Station, best.2.x, best.2.y));
-                // TODO: もっと良い方法があるはず (今後駅が建つところを通ったほうがよさそう) だが適当にやる
-                let mut now_pos = best.1;
-                let mut prv_pos = best.1;
-                while now_pos != best.2 {
-                    let mut next_pos = now_pos;
-                    let mut cand = vec![
-                        now_pos.left(),
-                        now_pos.right(),
-                        now_pos.up(),
-                        now_pos.down(),
-                    ];
-                    cand.shuffle(&mut rng);
-                    for &q in &cand {
-                        if q.in_range()
-                            && manhattan_distance(&q, &best.2)
-                                < manhattan_distance(&now_pos, &best.2)
-                        {
-                            next_pos = q;
-                            break;
+
+                // 01BFS: 今後駅が建つ予定ならそこを通りたい
+                let mut grid_dist = vec![vec![INF; N]; N];
+                let mut prv = vec![vec![Point::new(!0, !0); N]; N];
+                let mut que = collections::VecDeque::new();
+                que.push_back(best.1);
+                grid_dist[best.1.x][best.1.y] = 0;
+                prv[best.1.x][best.1.y] = best.1;
+
+                // コストが収まるように番兵しとく
+                {
+                    let u = best.1.x.min(best.2.x);
+                    let d = best.1.x.max(best.2.x);
+                    let l = best.1.y.min(best.2.y);
+                    let r = best.1.y.max(best.2.y);
+                    if u > 0 {
+                        for j in l..=r {
+                            grid_dist[u - 1][j] = 0;
                         }
                     }
-                    assert_ne!(next_pos, now_pos);
+                    if d < N - 1 {
+                        for j in l..=r {
+                            grid_dist[d + 1][j] = 0;
+                        }
+                    }
+                    if l > 0 {
+                        for i in u..=d {
+                            grid_dist[i][l - 1] = 0;
+                        }
+                    }
+                    if r < N - 1 {
+                        for i in u..=d {
+                            grid_dist[i][r + 1] = 0;
+                        }
+                    }
+                }
 
+                while !que.is_empty() {
+                    let q = que.pop_front().unwrap();
+                    if q == best.2 {
+                        break;
+                    }
+                    let mut cand = [q.left(), q.right(), q.up(), q.down()];
+                    cand.shuffle(&mut rng);
+                    for &r in &cand {
+                        if !r.in_range() || grid_dist[r.x][r.y] != INF {
+                            continue;
+                        }
+                        if is_station_pos[r.x][r.y] {
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
+                            que.push_front(r);
+                        } else {
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                            que.push_back(r);
+                        }
+                        prv[r.x][r.y] = q;
+                    }
+                }
+
+                assert_ne!(grid_dist[best.2.x][best.2.y], INF);
+
+                // 復元
+                let mut now_pos = best.2;
+                let mut prv_pos = best.2;
+                while now_pos != best.1 {
+                    let next_pos = prv[now_pos.x][now_pos.y];
+                    assert_ne!(next_pos, Point::new(!0, !0));
                     if prv_pos != now_pos {
                         // どの向きにつながるか
                         let mut mask = 0usize;
@@ -508,32 +578,40 @@ fn main() {
                 target_grid[p.x][p.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
-                // BFS
-                // 01 にする必要はない: 駅にぶつかったら終了するので既存の線路は使わない？
+                // 01BFS: 今後駅が建つ予定ならそこを通りたい
                 let mut grid_dist = vec![vec![INF; N]; N];
                 let mut que = collections::VecDeque::new();
+                let mut prv = vec![vec![Point::new(!0, !0); N]; N];
                 que.push_back(p);
                 grid_dist[p.x][p.y] = 0;
+                prv[p.x][p.y] = p;
                 let mut target = Point::new(!0, !0);
                 while !que.is_empty() {
                     let q = que.pop_front().unwrap();
                     if target_grid[q.x][q.y] == '#' && target == Point::new(!0, !0) {
                         target = q;
                     }
-                    for &r in &[q.left(), q.right(), q.up(), q.down()] {
+                    let mut cand = [q.left(), q.right(), q.up(), q.down()];
+                    cand.shuffle(&mut rng);
+                    for &r in &cand {
                         if !r.in_range()
                             || grid_dist[r.x][r.y] != INF
                             || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
                         {
                             continue;
                         }
-                        grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
-                        que.push_back(r);
+                        if is_station_pos[r.x][r.y] {
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
+                            que.push_front(r);
+                        } else {
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                            que.push_back(r);
+                        }
+                        prv[r.x][r.y] = q;
                     }
                 }
                 // 到達不可能
                 if target == Point::new(!0, !0) {
-                    // cand_pos.push(p);
                     continue;
                 }
 
@@ -541,23 +619,8 @@ fn main() {
                 let mut now_pos = target;
                 let mut prv_pos = target;
                 while now_pos != p {
-                    let mut next_pos = now_pos;
-                    let mut cand = vec![
-                        now_pos.left(),
-                        now_pos.right(),
-                        now_pos.up(),
-                        now_pos.down(),
-                    ];
-                    cand.shuffle(&mut rng);
-                    for &q in &cand {
-                        if q.in_range()
-                            && grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y]
-                        {
-                            next_pos = q;
-                            break;
-                        }
-                    }
-                    assert_ne!(next_pos, now_pos);
+                    let next_pos = prv[now_pos.x][now_pos.y];
+                    assert_ne!(next_pos, Point::new(!0, !0));
 
                     if target_grid[now_pos.x][now_pos.y] == '#' {
                         target_grid[now_pos.x][now_pos.y] = '#';
@@ -700,7 +763,7 @@ fn main() {
         let mut grid_state = vec![vec![GridState::Empty; N]; N];
 
         // (output, ターン終了時の (money, income))
-        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
+        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); num_turn];
 
         for i in 0..m {
             if !people2sta[i].0.is_empty() && !people2sta[i].1.is_empty() {
@@ -708,7 +771,7 @@ fn main() {
             }
         }
 
-        while turn < T {
+        while turn < num_turn {
             turn += 1;
 
             if build_todo.is_empty() {
@@ -771,7 +834,26 @@ fn main() {
         ans
     }
 
-    let mut ans = solve(&people, m, k);
+    // 最初は 100 ターン余計に実行してやる
+    let ans1 = solve(&people, m, k, T + 100, &Vec::new());
+    eprintln!("Step1: {}ms", time.elapsed().as_millis());
+    output_grid(&ans1);
+
+    // 駅一覧を取得
+    let stations = {
+        let mut res = Vec::new();
+        for &((s, p), _) in &ans1 {
+            if s == GridState::Station {
+                res.push(p);
+            }
+        }
+        res
+    };
+
+    // 答えを求めに行く
+    let mut ans = solve(&people, m, k, T, &stations);
+    eprintln!("Step2: {}ms", time.elapsed().as_millis());
+    output_grid(&ans);
 
     // 最終的に待ったほうがいいなら Revert
     for t in (0..T).rev() {
@@ -784,6 +866,8 @@ fn main() {
             }
         }
     }
+    eprintln!("Revert: {}ms", time.elapsed().as_millis());
 
     output(&ans);
+    eprintln!("Output: {}ms", time.elapsed().as_millis());
 }
