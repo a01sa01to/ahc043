@@ -466,17 +466,20 @@ fn main() {
 
     // どんどん駅をつなげていく
     let mut profit_table = vec![vec![0; N]; N];
+    let mut cost = vec![vec![0; N]; N];
     let mut cand_pos = Vec::new();
     let mut connected_home = vec![false; m];
     let mut connected_work = vec![false; m];
 
-    // 人の数も考慮する
+    // 人の数と費用も考慮する
     fn calc_profit(
         p: &Point,
         profit_table: &Vec<Vec<usize>>,
         grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
-    ) -> usize {
-        profit_table[p.x][p.y] * 100 + grid_to_peopleidx[p.x][p.y].len()
+        cost: &Vec<Vec<u32>>,
+    ) -> i64 {
+        profit_table[p.x][p.y] as i64 * 10000i64 + grid_to_peopleidx[p.x][p.y].len() as i64 * 100i64
+            - cost[p.x][p.y] as i64
     }
 
     {
@@ -525,8 +528,9 @@ fn main() {
 
         for i in 0..N {
             for j in 0..N {
-                cand_pos.push(Point::new(i, j));
                 let p = Point::new(i, j);
+                cand_pos.push(p);
+                cost[i][j] = manhattan_distance(&sta1pos, &p).min(manhattan_distance(&sta2pos, &p));
                 for &id in &grid_to_peopleidx[i][j] {
                     let pp = &people[id];
                     assert!(!(connected_home[id] && connected_work[id]));
@@ -542,14 +546,20 @@ fn main() {
 
         // 降順にしたいので profit_table[b].cmp[a] にする
         cand_pos.sort_unstable_by(|a, b| {
-            (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
+            calc_profit(b, &profit_table, &grid_to_peopleidx, &cost).cmp(&calc_profit(
                 a,
                 &profit_table,
                 &grid_to_peopleidx,
+                &cost,
             ))
         });
         while !cand_pos.is_empty()
-            && calc_profit(cand_pos.last().unwrap(), &profit_table, &grid_to_peopleidx) == 0
+            && calc_profit(
+                cand_pos.last().unwrap(),
+                &profit_table,
+                &grid_to_peopleidx,
+                &cost,
+            ) <= 0
         {
             cand_pos.pop();
         }
@@ -573,9 +583,8 @@ fn main() {
             let mut target = Point::new(!0, !0);
             while !que.is_empty() {
                 let q = que.pop_front().unwrap();
-                if target_grid[q.x][q.y] == '#' {
+                if target_grid[q.x][q.y] == '#' && target == Point::new(!0, !0) {
                     target = q;
-                    break;
                 }
                 for &r in &[q.left(), q.right(), q.up(), q.down()] {
                     if !r.in_range()
@@ -640,6 +649,14 @@ fn main() {
             }
             target_grid[p.x][p.y] = '#';
             target_grid[target.x][target.y] = '#';
+
+            for i in 0..N {
+                for j in 0..N {
+                    if grid_dist[i][j] != INF {
+                        cost[i][j] = cost[i][j].min(grid_dist[i][j] as u32);
+                    }
+                }
+            }
         }
 
         // 新しく p に駅ができるので更新
@@ -689,14 +706,20 @@ fn main() {
         }
 
         cand_pos.sort_unstable_by(|a, b| {
-            (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
+            (calc_profit(b, &profit_table, &grid_to_peopleidx, &cost)).cmp(&calc_profit(
                 a,
                 &profit_table,
                 &grid_to_peopleidx,
+                &cost,
             ))
         });
         while !cand_pos.is_empty()
-            && calc_profit(cand_pos.last().unwrap(), &profit_table, &grid_to_peopleidx) == 0
+            && calc_profit(
+                cand_pos.last().unwrap(),
+                &profit_table,
+                &grid_to_peopleidx,
+                &cost,
+            ) <= 0
         {
             cand_pos.pop();
         }
