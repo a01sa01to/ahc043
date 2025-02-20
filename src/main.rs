@@ -1,7 +1,7 @@
 extern crate rand;
 use proconio::{fastout, input};
 use rand::seq::SliceRandom;
-use std::{cmp, collections, fmt};
+use std::{collections, fmt};
 
 const COST_STATION: usize = 5000;
 const COST_RAIL: usize = 100;
@@ -32,80 +32,7 @@ const MANHATTAN_2_LIST: [(i32, i32); 13] = [
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GridState {
-    Empty,
-    Station(usize),
-    Rail(RailType),
-}
-impl GridState {
-    fn can_conn_left(&self) -> bool {
-        match self {
-            GridState::Empty => false,
-            GridState::Station(_) => true,
-            GridState::Rail(r) => match r {
-                RailType::None => false,
-                RailType::Station => true,
-                RailType::LR => true,
-                RailType::UD => false,
-                RailType::LD => true,
-                RailType::LU => true,
-                RailType::RU => false,
-                RailType::RD => false,
-            },
-        }
-    }
-    fn can_conn_right(&self) -> bool {
-        match self {
-            GridState::Empty => false,
-            GridState::Station(_) => true,
-            GridState::Rail(r) => match r {
-                RailType::None => false,
-                RailType::Station => true,
-                RailType::LR => true,
-                RailType::UD => false,
-                RailType::LD => false,
-                RailType::LU => false,
-                RailType::RU => true,
-                RailType::RD => true,
-            },
-        }
-    }
-    fn can_conn_up(&self) -> bool {
-        match self {
-            GridState::Empty => false,
-            GridState::Station(_) => true,
-            GridState::Rail(r) => match r {
-                RailType::None => false,
-                RailType::Station => true,
-                RailType::LR => false,
-                RailType::UD => true,
-                RailType::LD => false,
-                RailType::LU => true,
-                RailType::RU => true,
-                RailType::RD => false,
-            },
-        }
-    }
-    fn can_conn_down(&self) -> bool {
-        match self {
-            GridState::Empty => false,
-            GridState::Station(_) => true,
-            GridState::Rail(r) => match r {
-                RailType::None => false,
-                RailType::Station => true,
-                RailType::LR => false,
-                RailType::UD => true,
-                RailType::LD => true,
-                RailType::LU => false,
-                RailType::RU => false,
-                RailType::RD => true,
-            },
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum RailType {
-    None = -1,
+    Empty = -1,
     Station = 0,
     LR = 1,
     UD = 2,
@@ -114,17 +41,29 @@ enum RailType {
     RU = 5,
     RD = 6,
 }
-impl RailType {
+impl GridState {
     fn to_char(&self) -> char {
         match self {
-            RailType::None => unreachable!(),
-            RailType::Station => '#',
-            RailType::LR => '-',
-            RailType::UD => '|',
-            RailType::LD => '\\',
-            RailType::LU => 'J',
-            RailType::RU => 'L',
-            RailType::RD => '/',
+            GridState::Empty => unreachable!(),
+            GridState::Station => '#',
+            GridState::LR => '-',
+            GridState::UD => '|',
+            GridState::LD => '\\',
+            GridState::LU => 'J',
+            GridState::RU => 'L',
+            GridState::RD => '/',
+        }
+    }
+    fn output(&self) -> char {
+        match self {
+            GridState::Empty => unreachable!(),
+            GridState::Station => '0',
+            GridState::LR => '1',
+            GridState::UD => '2',
+            GridState::LD => '3',
+            GridState::LU => '4',
+            GridState::RU => '5',
+            GridState::RD => '6',
         }
     }
     fn from_mask(mask: usize) -> Self {
@@ -149,18 +88,52 @@ impl RailType {
         }
         unreachable!();
     }
-}
-impl fmt::Display for RailType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn can_conn_left(&self) -> bool {
         match self {
-            RailType::None => unreachable!(),
-            RailType::Station => write!(f, "0"),
-            RailType::LR => write!(f, "1"),
-            RailType::UD => write!(f, "2"),
-            RailType::LD => write!(f, "3"),
-            RailType::LU => write!(f, "4"),
-            RailType::RU => write!(f, "5"),
-            RailType::RD => write!(f, "6"),
+            GridState::Empty => false,
+            GridState::Station => true,
+            GridState::LR => true,
+            GridState::UD => false,
+            GridState::LD => true,
+            GridState::LU => true,
+            GridState::RU => false,
+            GridState::RD => false,
+        }
+    }
+    fn can_conn_right(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station => true,
+            GridState::LR => true,
+            GridState::UD => false,
+            GridState::LD => false,
+            GridState::LU => false,
+            GridState::RU => true,
+            GridState::RD => true,
+        }
+    }
+    fn can_conn_up(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station => true,
+            GridState::LR => false,
+            GridState::UD => true,
+            GridState::LD => false,
+            GridState::LU => true,
+            GridState::RU => true,
+            GridState::RD => false,
+        }
+    }
+    fn can_conn_down(&self) -> bool {
+        match self {
+            GridState::Empty => false,
+            GridState::Station => true,
+            GridState::LR => false,
+            GridState::UD => true,
+            GridState::LD => true,
+            GridState::LU => false,
+            GridState::RU => false,
+            GridState::RD => true,
         }
     }
 }
@@ -223,43 +196,6 @@ impl Person {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct Station {
-    pos: Point,
-    num_new_users: usize,
-    num_known_users: usize,
-}
-impl Station {
-    fn new(pos: Point, num_new_users: usize, num_known_users: usize) -> Self {
-        Self {
-            pos,
-            num_new_users,
-            num_known_users,
-        }
-    }
-    fn sum_users(&self) -> usize {
-        self.num_new_users + self.num_known_users
-    }
-}
-impl cmp::PartialOrd for Station {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        if self.sum_users() != other.sum_users() {
-            self.sum_users().partial_cmp(&other.sum_users())
-        } else {
-            self.num_known_users.partial_cmp(&other.num_known_users)
-        }
-    }
-}
-impl cmp::Ord for Station {
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        if self.sum_users() != other.sum_users() {
-            self.sum_users().cmp(&other.sum_users())
-        } else {
-            self.num_known_users.cmp(&other.num_known_users)
-        }
-    }
-}
-
 fn in_range(x: i32, y: i32) -> bool {
     x >= 0 && x < N as i32 && y >= 0 && y < N as i32
 }
@@ -270,7 +206,6 @@ fn update_income(
     people: &Vec<Person>,
     grid_dsu: &mut ac_library::Dsu,
     grid_state: &Vec<Vec<GridState>>,
-    pos2sta: &Vec<Vec<usize>>,
 ) {
     let mut done = collections::HashSet::new();
     for &i in nconnected_peopleidx.iter() {
@@ -281,7 +216,7 @@ fn update_income(
                     (p.home.x as i32 + dx1) as usize,
                     (p.home.y as i32 + dy1) as usize,
                 );
-                if grid_state[p1.x][p1.y] == GridState::Station(pos2sta[p1.x][p1.y]) {
+                if grid_state[p1.x][p1.y] == GridState::Station {
                     for (dx2, dy2) in MANHATTAN_2_LIST {
                         if in_range(p.work.x as i32 + dx2, p.work.y as i32 + dy2) {
                             let p2 = Point::new(
@@ -289,7 +224,7 @@ fn update_income(
                                 (p.work.y as i32 + dy2) as usize,
                             );
                             if grid_dsu.same(p1.to_idx(), p2.to_idx())
-                                && grid_state[p2.x][p2.y] == GridState::Station(pos2sta[p2.x][p2.y])
+                                && grid_state[p2.x][p2.y] == GridState::Station
                             {
                                 *income += p.dist();
                                 done.insert(i);
@@ -307,15 +242,15 @@ fn update_income(
 }
 
 #[fastout]
-fn output(ans: &Vec<((RailType, Point), (usize, usize))>) {
+fn output(ans: &Vec<((GridState, Point), (usize, usize))>) {
     for i in 0..ans.len() {
-        let ((rail, pos), (money, income)) = ans[i];
+        let ((s, pos), (money, income)) = ans[i];
         println!("# Turn: {}", i + 1);
         println!("# Money: {} Income: {}", money, income);
-        if rail == RailType::None {
+        if s == GridState::Empty {
             println!("-1");
         } else {
-            println!("{} {} {}", rail, pos.x, pos.y);
+            println!("{} {} {}", s.output(), pos.x, pos.y);
         }
     }
 }
@@ -348,7 +283,7 @@ fn main() {
         people: &Vec<Person>,
         m: usize,
         k_: usize,
-    ) -> Vec<((RailType, Point), (usize, usize))> {
+    ) -> Vec<((GridState, Point), (usize, usize))> {
         let mut k = k_;
 
         let mut rng = rand::thread_rng();
@@ -417,8 +352,8 @@ fn main() {
                 }
             }
             if best.0 > 0 {
-                build_todo.push_back((RailType::Station, best.1.x, best.1.y));
-                build_todo.push_back((RailType::Station, best.2.x, best.2.y));
+                build_todo.push_back((GridState::Station, best.1.x, best.1.y));
+                build_todo.push_back((GridState::Station, best.2.x, best.2.y));
                 // TODO: もっと良い方法があるはず (今後駅が建つところを通ったほうがよさそう) だが適当にやる
                 let mut now_pos = best.1;
                 let mut prv_pos = best.1;
@@ -455,8 +390,8 @@ fn main() {
                                 mask |= msk;
                             }
                         }
-                        target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
-                        build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
+                        target_grid[now_pos.x][now_pos.y] = GridState::from_mask(mask).to_char();
+                        build_todo.push_back((GridState::from_mask(mask), now_pos.x, now_pos.y));
                     }
 
                     prv_pos = now_pos;
@@ -494,8 +429,8 @@ fn main() {
             build_todo.push_front(sta2);
             build_todo.push_front(sta1);
 
-            assert_eq!(sta1.0, RailType::Station);
-            assert_eq!(sta2.0, RailType::Station);
+            assert_eq!(sta1.0, GridState::Station);
+            assert_eq!(sta2.0, GridState::Station);
 
             let sta1pos = Point::new(sta1.1, sta1.2);
             let sta2pos = Point::new(sta2.1, sta2.2);
@@ -577,7 +512,7 @@ fn main() {
             // もしすでに線路がひかれていればそこに置くだけ
             if target_grid[p.x][p.y] != '.' {
                 target_grid[p.x][p.y] = '#';
-                build_todo.push_back((RailType::Station, p.x, p.y));
+                build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
                 // BFS
                 // 01 にする必要はない: 駅にぶつかったら終了するので既存の線路は使わない？
@@ -645,8 +580,8 @@ fn main() {
                                 mask |= msk;
                             }
                         }
-                        target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
-                        build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
+                        target_grid[now_pos.x][now_pos.y] = GridState::from_mask(mask).to_char();
+                        build_todo.push_back((GridState::from_mask(mask), now_pos.x, now_pos.y));
                     }
 
                     prv_pos = now_pos;
@@ -654,7 +589,7 @@ fn main() {
                 }
                 target_grid[p.x][p.y] = '#';
                 target_grid[target.x][target.y] = '#';
-                build_todo.push_back((RailType::Station, p.x, p.y));
+                build_todo.push_back((GridState::Station, p.x, p.y));
 
                 for i in 0..N {
                     for j in 0..N {
@@ -736,7 +671,7 @@ fn main() {
             for i in 0..N {
                 for j in 0..N {
                     if target_grid[i][j] == '#' {
-                        res.push(Station::new(Point::new(i, j), 0, 0));
+                        res.push(Point::new(i, j));
                     }
                 }
             }
@@ -748,8 +683,8 @@ fn main() {
             for (i, p) in people.iter().enumerate() {
                 for (j, s) in stations.iter().enumerate() {
                     for (dx, dy) in MANHATTAN_2_LIST {
-                        let nx = s.pos.x as i32 + dx;
-                        let ny = s.pos.y as i32 + dy;
+                        let nx = s.x as i32 + dx;
+                        let ny = s.y as i32 + dy;
                         let po = Point::new(nx as usize, ny as usize);
                         if po.in_range() && p.home == po {
                             res[i].0.push(j);
@@ -762,13 +697,6 @@ fn main() {
             }
             res
         };
-        let pos2sta = {
-            let mut res = vec![vec![!0; N]; N];
-            for (i, s) in stations.iter().enumerate() {
-                res[s.pos.x][s.pos.y] = i;
-            }
-            res
-        };
 
         // 答えを出すパート
         let mut turn = 0;
@@ -778,7 +706,7 @@ fn main() {
         let mut grid_state = vec![vec![GridState::Empty; N]; N];
 
         // (output, ターン終了時の (money, income))
-        let mut ans = vec![((RailType::None, Point::new(!0, !0)), (0, 0)); T];
+        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
 
         for i in 0..m {
             if !people2sta[i].0.is_empty() && !people2sta[i].1.is_empty() {
@@ -789,72 +717,68 @@ fn main() {
         while turn < T {
             turn += 1;
 
-            if !build_todo.is_empty() {
-                let &(r, i, j) = build_todo.front().unwrap();
-                let p = Point::new(i, j);
-                assert!(p.in_range());
-                assert_ne!(r, RailType::None);
-
-                if r == RailType::Station && k >= COST_STATION {
-                    build_todo.pop_front();
-                    let staidx = pos2sta[i][j];
-                    assert_ne!(staidx, !0);
-                    grid_state[i][j] = GridState::Station(staidx);
-                    k -= COST_STATION;
-                } else if r != RailType::Station && k >= COST_RAIL {
-                    build_todo.pop_front();
-                    grid_state[i][j] = GridState::Rail(r);
-                    k -= COST_RAIL;
-                } else {
+            if build_todo.is_empty() {
+                for x in turn..=T {
                     k += income;
-                    ans[turn - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
-                    continue;
+                    ans[x - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
                 }
+                break;
+            }
 
-                if grid_state[i][j].can_conn_left()
-                    && p.left().in_range()
-                    && grid_state[p.left().x][p.left().y].can_conn_right()
-                {
-                    grid_dsu.merge(p.to_idx(), p.left().to_idx());
-                }
-                if grid_state[i][j].can_conn_right()
-                    && p.right().in_range()
-                    && grid_state[p.right().x][p.right().y].can_conn_left()
-                {
-                    grid_dsu.merge(p.to_idx(), p.right().to_idx());
-                }
-                if grid_state[i][j].can_conn_up()
-                    && p.up().in_range()
-                    && grid_state[p.up().x][p.up().y].can_conn_down()
-                {
-                    grid_dsu.merge(p.to_idx(), p.up().to_idx());
-                }
-                if grid_state[i][j].can_conn_down()
-                    && p.down().in_range()
-                    && grid_state[p.down().x][p.down().y].can_conn_up()
-                {
-                    grid_dsu.merge(p.to_idx(), p.down().to_idx());
-                }
+            let &(r, i, j) = build_todo.front().unwrap();
+            let p = Point::new(i, j);
+            assert!(p.in_range());
+            assert_ne!(r, GridState::Empty);
 
-                update_income(
-                    &mut income,
-                    &mut nconnected_peopleidx,
-                    &people,
-                    &mut grid_dsu,
-                    &grid_state,
-                    &pos2sta,
-                );
-
+            if r == GridState::Station && k >= COST_STATION {
+                k -= COST_STATION;
+            } else if r != GridState::Station && k >= COST_RAIL {
+                k -= COST_RAIL;
+            } else {
                 k += income;
-
-                ans[turn - 1] = ((r, p), (k, income));
+                ans[turn - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
                 continue;
             }
 
-            for x in turn..=T {
-                k += income;
-                ans[x - 1] = ((RailType::None, Point::new(!0, !0)), (k, income));
+            build_todo.pop_front();
+            grid_state[i][j] = r;
+
+            if grid_state[i][j].can_conn_left()
+                && p.left().in_range()
+                && grid_state[p.left().x][p.left().y].can_conn_right()
+            {
+                grid_dsu.merge(p.to_idx(), p.left().to_idx());
             }
+            if grid_state[i][j].can_conn_right()
+                && p.right().in_range()
+                && grid_state[p.right().x][p.right().y].can_conn_left()
+            {
+                grid_dsu.merge(p.to_idx(), p.right().to_idx());
+            }
+            if grid_state[i][j].can_conn_up()
+                && p.up().in_range()
+                && grid_state[p.up().x][p.up().y].can_conn_down()
+            {
+                grid_dsu.merge(p.to_idx(), p.up().to_idx());
+            }
+            if grid_state[i][j].can_conn_down()
+                && p.down().in_range()
+                && grid_state[p.down().x][p.down().y].can_conn_up()
+            {
+                grid_dsu.merge(p.to_idx(), p.down().to_idx());
+            }
+
+            update_income(
+                &mut income,
+                &mut nconnected_peopleidx,
+                &people,
+                &mut grid_dsu,
+                &grid_state,
+            );
+
+            k += income;
+
+            ans[turn - 1] = ((r, p), (k, income));
         }
         ans
     }
@@ -866,7 +790,7 @@ fn main() {
         if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
             for x in t + 1..T {
                 ans[x] = (
-                    (RailType::None, Point::new(!0, !0)),
+                    (GridState::Empty, Point::new(!0, !0)),
                     (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
                 );
             }
