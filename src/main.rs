@@ -200,16 +200,13 @@ fn in_range(x: i32, y: i32) -> bool {
     x >= 0 && x < N as i32 && y >= 0 && y < N as i32
 }
 
-fn update_income(
-    income: &mut usize,
-    nconnected_peopleidx: &mut collections::HashSet<usize>,
+fn calc_income(
     people: &Vec<Person>,
     grid_dsu: &mut ac_library::Dsu,
     grid_state: &Vec<Vec<GridState>>,
-) {
-    let mut done = collections::HashSet::new();
-    for &i in nconnected_peopleidx.iter() {
-        let p = &people[i];
+) -> usize {
+    let mut res = 0;
+    for &p in people.iter() {
         'outer: for (dx1, dy1) in MANHATTAN_2_LIST {
             if in_range(p.home.x as i32 + dx1, p.home.y as i32 + dy1) {
                 let p1 = Point::new(
@@ -226,8 +223,7 @@ fn update_income(
                             if grid_dsu.same(p1.to_idx(), p2.to_idx())
                                 && grid_state[p2.x][p2.y] == GridState::Station
                             {
-                                *income += p.dist();
-                                done.insert(i);
+                                res += p.dist();
                                 break 'outer;
                             }
                         }
@@ -236,9 +232,7 @@ fn update_income(
             }
         }
     }
-    for &i in &done {
-        nconnected_peopleidx.remove(&i);
-    }
+    res
 }
 
 #[fastout]
@@ -768,13 +762,7 @@ fn main() {
                 grid_dsu.merge(p.to_idx(), p.down().to_idx());
             }
 
-            update_income(
-                &mut income,
-                &mut nconnected_peopleidx,
-                &people,
-                &mut grid_dsu,
-                &grid_state,
-            );
+            income = calc_income(&people, &mut grid_dsu, &grid_state);
 
             k += income;
 
