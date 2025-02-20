@@ -443,8 +443,8 @@ fn main() {
         res
     };
 
-    let grid_to_peopleidx = {
-        let mut res = vec![vec![Vec::new(); N]; N];
+    let mut grid_to_peopleidx = vec![vec![Vec::new(); N]; N];
+    {
         for i in 0..m {
             for (dx, dy) in MANHATTAN_2_LIST {
                 let nxh = people[i].home.x as i32 + dx;
@@ -452,21 +452,20 @@ fn main() {
                 let nxw = people[i].work.x as i32 + dx;
                 let nyw = people[i].work.y as i32 + dy;
                 if in_range(nxh, nyh) {
-                    res[nxh as usize][nyh as usize].push(i);
+                    grid_to_peopleidx[nxh as usize][nyh as usize].push(i);
                 }
                 if in_range(nxw, nyw) {
-                    res[nxw as usize][nyw as usize].push(i);
+                    grid_to_peopleidx[nxw as usize][nyw as usize].push(i);
                 }
             }
         }
         for i in 0..N {
             for j in 0..N {
-                res[i][j].sort();
-                res[i][j].dedup();
+                grid_to_peopleidx[i][j].sort();
+                grid_to_peopleidx[i][j].dedup();
             }
         }
-        res
-    };
+    }
 
     let mut build_todo = collections::VecDeque::new();
     let mut target_grid = vec![vec!['.'; N]; N];
@@ -517,7 +516,6 @@ fn main() {
             eprintln!("{:?}", best);
             build_todo.push_back((RailType::Station, best.1.x, best.1.y));
             build_todo.push_back((RailType::Station, best.2.x, best.2.y));
-            k -= 2 * COST_STATION + manhattan_distance(&best.1, &best.2) as usize * COST_RAIL;
             // TODO: もっと良い方法があるはず (今後駅が建つところを通ったほうがよさそう) だが適当にやる
             let mut now_pos = best.1;
             let mut prv_pos = best.1;
@@ -568,8 +566,224 @@ fn main() {
     );
     eprintln!("{:?}", build_todo);
 
-    // 駅の場所を決める
-    let mut stations = Vec::new();
+    // どんどん駅をつなげていく
+    let mut profit_table = vec![vec![0; N]; N];
+    let mut cand_pos = Vec::new();
+
+    fn calc_profit(
+        p: &Point,
+        profit_table: &Vec<Vec<usize>>,
+        grid_to_peopleidx: &Vec<Vec<Vec<usize>>>,
+    ) -> usize {
+        profit_table[p.x][p.y] * 100 + grid_to_peopleidx[p.x][p.y].len()
+    }
+
+    {
+        // 前の 2 要素を取得
+        // pop しないより良い方法がありそうだけどまあ許容
+        let sta1 = build_todo.pop_front().unwrap();
+        let sta2 = build_todo.pop_front().unwrap();
+        build_todo.push_front(sta2);
+        build_todo.push_front(sta1);
+
+        assert_eq!(sta1.0, RailType::Station);
+        assert_eq!(sta2.0, RailType::Station);
+
+        let sta1pos = Point::new(sta1.1, sta1.2);
+        let sta2pos = Point::new(sta2.1, sta2.2);
+        for (dx, dy) in MANHATTAN_2_LIST {
+            let nx1 = sta1pos.x as i32 + dx;
+            let ny1 = sta1pos.y as i32 + dy;
+            let nx2 = sta2pos.x as i32 + dx;
+            let ny2 = sta2pos.y as i32 + dy;
+            if in_range(nx1, ny1) {
+                grid_to_peopleidx[nx1 as usize][ny1 as usize].clear();
+                profit_table[nx1 as usize][ny1 as usize] = 0;
+            }
+            if in_range(nx2, ny2) {
+                grid_to_peopleidx[nx2 as usize][ny2 as usize].clear();
+                profit_table[nx2 as usize][ny2 as usize] = 0;
+            }
+        }
+
+        for i in 0..N {
+            for j in 0..N {
+                cand_pos.push(Point::new(i, j));
+                let p = Point::new(i, j);
+                for &id in &grid_to_peopleidx[i][j] {
+                    let pp = &people[id];
+                    if manhattan_distance(&pp.home, &p) <= 2 {
+                        if manhattan_distance(&pp.work, &sta1pos) <= 2
+                            || manhattan_distance(&pp.work, &sta2pos) <= 2
+                        {
+                            profit_table[i][j] += pp.dist();
+                        }
+                    }
+                    if manhattan_distance(&pp.work, &p) <= 2 {
+                        if manhattan_distance(&pp.home, &sta1pos) <= 2
+                            || manhattan_distance(&pp.home, &sta2pos) <= 2
+                        {
+                            profit_table[i][j] += pp.dist();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 降順にしたいので profit_table[b].cmp[a] にする
+        // 人の数も考慮する
+        cand_pos.sort_unstable_by(|a, b| {
+            (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
+                a,
+                &profit_table,
+                &grid_to_peopleidx,
+            ))
+        });
+        while !cand_pos.is_empty()
+            && calc_profit(cand_pos.last().unwrap(), &profit_table, &grid_to_peopleidx) == 0
+        {
+            cand_pos.pop();
+        }
+    }
+
+    while !cand_pos.is_empty() {
+        let &p = cand_pos.first().unwrap();
+        cand_pos.remove(0);
+        // BFS
+        // 01 にする必要はない: 駅にぶつかったら終了するので既存の線路は使わない？
+        let mut grid_dist = vec![vec![INF; N]; N];
+        let mut que = collections::VecDeque::new();
+        que.push_back(p);
+        grid_dist[p.x][p.y] = 0;
+        let mut target = Point::new(!0, !0);
+        while !que.is_empty() {
+            let q = que.pop_front().unwrap();
+            if target_grid[q.x][q.y] == '#' {
+                target = q;
+                break;
+            }
+            for &r in &[q.left(), q.right(), q.up(), q.down()] {
+                if !r.in_range()
+                    || grid_dist[r.x][r.y] != INF
+                    || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
+                {
+                    continue;
+                }
+                grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                que.push_back(r);
+            }
+        }
+        // 到達不可能
+        if target == Point::new(!0, !0) {
+            // cand_pos.push(p);
+            continue;
+        }
+
+        build_todo.push_back((RailType::Station, p.x, p.y));
+
+        // 復元
+        let mut now_pos = target;
+        let mut prv_pos = target;
+        while now_pos != p {
+            let mut next_pos = now_pos;
+            let mut cand = vec![
+                now_pos.left(),
+                now_pos.right(),
+                now_pos.up(),
+                now_pos.down(),
+            ];
+            cand.shuffle(&mut rng);
+            for &q in &cand {
+                if q.in_range() && grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+                    next_pos = q;
+                    break;
+                }
+            }
+            assert_ne!(next_pos, now_pos);
+
+            if target_grid[now_pos.x][now_pos.y] == '#' {
+                target_grid[now_pos.x][now_pos.y] = '#';
+            } else if prv_pos != now_pos {
+                // どの向きにつながるか
+                let mut mask = 0usize;
+                for &(q, msk) in &[
+                    (now_pos.left(), MASK_L),
+                    (now_pos.right(), MASK_R),
+                    (now_pos.up(), MASK_U),
+                    (now_pos.down(), MASK_D),
+                ] {
+                    if q == prv_pos || q == next_pos {
+                        mask |= msk;
+                    }
+                }
+                target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
+                build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
+            }
+
+            prv_pos = now_pos;
+            now_pos = next_pos;
+        }
+        target_grid[p.x][p.y] = '#';
+        target_grid[target.x][target.y] = '#';
+
+        // 新しく p に駅ができるので更新
+        for (dx, dy) in MANHATTAN_2_LIST {
+            if dx == 0 && dy == 0 {
+                continue;
+            }
+            let nx = p.x as i32 + dx;
+            let ny = p.y as i32 + dy;
+            if in_range(nx, ny) {
+                grid_to_peopleidx[nx as usize][ny as usize].clear();
+                profit_table[nx as usize][ny as usize] = 0;
+            }
+        }
+        for &i in grid_to_peopleidx[p.x][p.y].iter() {
+            let pp = &people[i];
+            if manhattan_distance(&pp.home, &p) <= 2 {
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = pp.work.x as i32 + dx;
+                    let ny = pp.work.y as i32 + dy;
+                    if in_range(nx, ny) && grid_to_peopleidx[nx as usize][ny as usize].len() > 0 {
+                        profit_table[nx as usize][ny as usize] += pp.dist();
+                    }
+                }
+            }
+            if manhattan_distance(&pp.work, &p) <= 2 {
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = pp.home.x as i32 + dx;
+                    let ny = pp.home.y as i32 + dy;
+                    if in_range(nx, ny) && grid_to_peopleidx[nx as usize][ny as usize].len() > 0 {
+                        profit_table[nx as usize][ny as usize] += pp.dist();
+                    }
+                }
+            }
+        }
+        grid_to_peopleidx[p.x][p.y].clear();
+
+        cand_pos.sort_unstable_by(|a, b| {
+            (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
+                a,
+                &profit_table,
+                &grid_to_peopleidx,
+            ))
+        });
+        while !cand_pos.is_empty()
+            && calc_profit(cand_pos.last().unwrap(), &profit_table, &grid_to_peopleidx) == 0
+        {
+            cand_pos.pop();
+        }
+    }
+
+    eprintln!("Time for finding path: {}ms", time.elapsed().as_millis());
+    for i in 0..N {
+        for j in 0..N {
+            eprint!("{}", target_grid[i][j]);
+        }
+        eprintln!();
+    }
+
+    // let mut stations = Vec::new();
     {
         let mut used = vec![vec![false; N]; N];
 
@@ -771,85 +985,27 @@ fn main() {
         eprintln!("Score: {}", best_score);
     }
 
-    {
-        let mut sta_unused = Vec::new();
-        for i in 0..stations.len() {
-            if target_grid[stations[i].pos.x][stations[i].pos.y] != '#' {
-                sta_unused.push(i);
-            }
-        }
-        for &i in sta_unused.iter().rev() {
-            stations.remove(i);
-        }
-        for (i, s) in stations.iter().enumerate() {
-            assert_eq!(s.pos, stations[i].pos);
-            eprintln!("Station {}: {} {}", i, s.pos.x, s.pos.y);
-        }
-    }
-    let stations = stations;
-
-    let people2sta = {
-        let mut res = vec![(!0, !0); m];
-        for (i, p) in people.iter().enumerate() {
-            for (j, s) in stations.iter().enumerate() {
-                for (dx, dy) in MANHATTAN_2_LIST {
-                    let nx = s.pos.x as i32 + dx;
-                    let ny = s.pos.y as i32 + dy;
-                    let po = Point::new(nx as usize, ny as usize);
-                    if po.in_range() && p.home == po {
-                        res[i].0 = j;
-                    }
-                    if po.in_range() && p.work == po {
-                        res[i].1 = j;
-                    }
-                }
-            }
-        }
-        res
-    };
-    let sta2users = {
-        let mut res = vec![Vec::new(); stations.len()];
-        for i in 0..stations.len() {
-            for j in 0..m {
-                if people2sta[j].0 == !0 || people2sta[j].1 == !0 {
-                    continue;
-                }
-                if people2sta[j].0 == i || people2sta[j].1 == i {
-                    res[i].push(j);
-                }
-            }
-        }
-        res
-    };
-
-    eprintln!("Time for building graph: {}ms", time.elapsed().as_millis());
-    eprintln!("Target Grid:");
-    for i in 0..N {
-        for j in 0..N {
-            eprint!("{}", target_grid[i][j]);
-        }
-        eprintln!();
-    }
-
-    // target grid から dist と next_pos を作る
-    let mut dist = vec![vec![INF; stations.len()]; stations.len()];
-    let mut next_pos = vec![vec![vec![Point::new(!0, !0); N]; N]; stations.len()];
-    let pos2sta = {
-        let mut res = vec![vec![!0; N]; N];
-        for (i, s) in stations.iter().enumerate() {
-            res[s.pos.x][s.pos.y] = i;
-        }
-        res
-    };
-    {
-        let graph = {
-            let mut res = vec![vec![Vec::new(); N]; N];
-            for i in 0..N {
-                for j in 0..N {
-                    if target_grid[i][j] == '.' {
-                        continue;
-                    }
-                    let p = Point::new(i, j);
+    // {
+    //     let mut sta_unused = Vec::new();
+    //     for i in 0..stations.len() {
+    //         if target_grid[stations[i].pos.x][stations[i].pos.y] != '#' {
+    //             sta_unused.push(i);
+    //         }
+    //     }
+    //     for &i in sta_unused.iter().rev() {
+    //         stations.remove(i);
+    //     }
+    //     for (i, s) in stations.iter().enumerate() {
+    //         assert_eq!(s.pos, stations[i].pos);
+    //         eprintln!("Station {}: {} {}", i, s.pos.x, s.pos.y);
+    //     }
+    // }
+    let stations = {
+        let mut res = Vec::new();
+        for i in 0..N {
+            for j in 0..N {
+                if target_grid[i][j] == '#' {
+                    res.push(Station::new(Point::new(i, j);
                     let mut cand = Vec::new();
                     if RailType::from_char(target_grid[i][j]) == RailType::Station {
                         cand = vec![p.left(), p.right(), p.up(), p.down()];
