@@ -235,24 +235,10 @@ fn calc_income(
     res
 }
 
-fn output_grid(ans: &Vec<((GridState, Point), (usize, usize))>) {
-    let mut grid = vec![vec!['.'; N]; N];
-    for &((s, p), _) in ans {
-        if s != GridState::Empty {
-            grid[p.x][p.y] = s.to_char();
-        }
-    }
-    for i in 0..N {
-        for j in 0..N {
-            eprint!("{}", grid[i][j]);
-        }
-        eprintln!();
-    }
-}
-
 #[fastout]
 fn output(ans: &Vec<((GridState, Point), (usize, usize))>) {
-    for i in 0..ans.len() {
+    assert!(ans.len() >= T);
+    for i in 0..T {
         let ((s, pos), (money, income)) = ans[i];
         println!("# Turn: {}", i + 1);
         println!("# Money: {} Income: {}", money, income);
@@ -775,7 +761,7 @@ fn main() {
             turn += 1;
 
             if build_todo.is_empty() {
-                for x in turn..=T {
+                for x in turn..=num_turn {
                     k += income;
                     ans[x - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
                 }
@@ -834,40 +820,60 @@ fn main() {
         ans
     }
 
-    // 最初は 100 ターン余計に実行してやる
-    let ans1 = solve(&people, m, k, T + 100, &Vec::new());
-    eprintln!("Step1: {}ms", time.elapsed().as_millis());
-    output_grid(&ans1);
+    let mut best = (0, Vec::new());
+    let mut prv_sta = Vec::new();
+    let mut cnttry = 0;
 
-    // 駅一覧を取得
-    let stations = {
-        let mut res = Vec::new();
-        for &((s, p), _) in &ans1 {
-            if s == GridState::Station {
-                res.push(p);
+    // 余裕をもって 2000ms で終了
+    while time.elapsed().as_millis() < 2000 {
+        // 最初は 100 ターン余計に実行してやって、どんどん減らしていく
+        let ans = solve(
+            &people,
+            m,
+            k,
+            T + (100 - 10 * cnttry as i32).max(0) as usize,
+            &prv_sta,
+        );
+        eprintln!("#{}: {}ms", cnttry, time.elapsed().as_millis());
+
+        // 駅一覧を取得
+        prv_sta = {
+            let mut res = Vec::new();
+            for &((s, p), _) in &ans {
+                if s == GridState::Station {
+                    res.push(p);
+                }
             }
-        }
-        res
-    };
+            res
+        };
 
-    // 答えを求めに行く
-    let mut ans = solve(&people, m, k, T, &stations);
-    eprintln!("Step2: {}ms", time.elapsed().as_millis());
-    output_grid(&ans);
+        let score = {
+            let mut res = 0;
+            for i in 0..T {
+                res = res.max(ans[i].1 .0 + ans[i].1 .1 * (T - i));
+            }
+            res
+        };
+
+        if score > best.0 {
+            best = (score, ans);
+        }
+        cnttry += 1;
+    }
 
     // 最終的に待ったほうがいいなら Revert
     for t in (0..T).rev() {
-        if ans[T - 1].1 .0 < ans[t].1 .0 + ans[t].1 .1 * (T - t) {
+        if best.1[T - 1].1 .0 < best.1[t].1 .0 + best.1[t].1 .1 * (T - t) {
             for x in t + 1..T {
-                ans[x] = (
+                best.1[x] = (
                     (GridState::Empty, Point::new(!0, !0)),
-                    (ans[t].1 .0 + ans[t].1 .1 * (x - t), ans[t].1 .1),
+                    (best.1[t].1 .0 + best.1[t].1 .1 * (x - t), best.1[t].1 .1),
                 );
             }
         }
     }
     eprintln!("Revert: {}ms", time.elapsed().as_millis());
 
-    output(&ans);
+    output(&best.1);
     eprintln!("Output: {}ms", time.elapsed().as_millis());
 }
