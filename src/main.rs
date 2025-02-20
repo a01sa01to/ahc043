@@ -427,7 +427,9 @@ fn main() {
                 ];
                 cand.shuffle(&mut rng);
                 for &q in &cand {
-                    if manhattan_distance(&q, &best.2) < manhattan_distance(&now_pos, &best.2) {
+                    if q.in_range()
+                        && manhattan_distance(&q, &best.2) < manhattan_distance(&now_pos, &best.2)
+                    {
                         next_pos = q;
                         break;
                     }
