@@ -1,7 +1,7 @@
 extern crate rand;
 use proconio::{fastout, input};
 use rand::seq::SliceRandom;
-use std::{collections, fmt, time};
+use std::{cmp::Reverse, collections, fmt, time};
 
 const COST_STATION: usize = 5000;
 const COST_RAIL: usize = 100;
@@ -138,7 +138,7 @@ impl GridState {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
 struct Point {
     x: usize,
     y: usize,
@@ -454,7 +454,8 @@ fn main() {
 
         // どんどん駅をつなげていく
         let mut profit_table = vec![vec![0; N]; N];
-        let mut cost = vec![vec![0; N]; N];
+        let mut cost = vec![vec![collections::BinaryHeap::new(); N]; N];
+        let mut closed_station = collections::HashSet::new();
         let mut cand_pos = Vec::new();
         let mut connected_home = vec![false; m];
         let mut connected_work = vec![false; m];
@@ -464,11 +465,16 @@ fn main() {
             p: &Point,
             profit_table: &Vec<Vec<usize>>,
             grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
-            cost: &Vec<Vec<u32>>,
+            cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, Point)>>>>,
         ) -> i64 {
             profit_table[p.x][p.y] as i64 * 10000i64
                 + grid_to_peopleidx[p.x][p.y].len() as i64 * 100i64
-                - cost[p.x][p.y] as i64
+                - (cost[p.x][p.y]
+                    .peek()
+                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .unwrap()
+                    .0
+                     .0 as i64)
         }
 
         {
@@ -519,8 +525,8 @@ fn main() {
                 for j in 0..N {
                     let p = Point::new(i, j);
                     cand_pos.push(p);
-                    cost[i][j] =
-                        manhattan_distance(&sta1pos, &p).min(manhattan_distance(&sta2pos, &p));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta1pos, &p), sta1pos)));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta2pos, &p), sta2pos)));
                     for &id in &grid_to_peopleidx[i][j] {
                         let pp = &people[id];
                         assert!(!(connected_home[id] && connected_work[id]));
@@ -634,10 +640,28 @@ fn main() {
                 target_grid[target.x][target.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
 
+                {
+                    let mut flg = true;
+                    for q in &[target.left(), target.right(), target.up(), target.down()] {
+                        if q.in_range() && target_grid[q.x][q.y] == '.' {
+                            flg = false;
+                            break;
+                        }
+                    }
+                    if flg {
+                        closed_station.insert(target);
+                    }
+                }
+
                 for i in 0..N {
                     for j in 0..N {
                         if grid_dist[i][j] != INF {
-                            cost[i][j] = cost[i][j].min(grid_dist[i][j] as u32);
+                            cost[i][j].push(Reverse((grid_dist[i][j] as u32, p)));
+                            while !cost[i][j].is_empty()
+                                && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
+                            {
+                                cost[i][j].pop();
+                            }
                         }
                     }
                 }
