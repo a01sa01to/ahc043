@@ -443,7 +443,7 @@ fn main() {
         res
     };
 
-    let mut grid_to_peopleidx = vec![vec![Vec::new(); N]; N];
+    let mut grid_to_peopleidx = vec![vec![collections::HashSet::new(); N]; N];
     {
         for i in 0..m {
             for (dx, dy) in MANHATTAN_2_LIST {
@@ -452,17 +452,11 @@ fn main() {
                 let nxw = people[i].work.x as i32 + dx;
                 let nyw = people[i].work.y as i32 + dy;
                 if in_range(nxh, nyh) {
-                    grid_to_peopleidx[nxh as usize][nyh as usize].push(i);
+                    grid_to_peopleidx[nxh as usize][nyh as usize].insert(i);
                 }
                 if in_range(nxw, nyw) {
-                    grid_to_peopleidx[nxw as usize][nyw as usize].push(i);
+                    grid_to_peopleidx[nxw as usize][nyw as usize].insert(i);
                 }
-            }
-        }
-        for i in 0..N {
-            for j in 0..N {
-                grid_to_peopleidx[i][j].sort();
-                grid_to_peopleidx[i][j].dedup();
             }
         }
     }
@@ -569,11 +563,14 @@ fn main() {
     // どんどん駅をつなげていく
     let mut profit_table = vec![vec![0; N]; N];
     let mut cand_pos = Vec::new();
+    let mut connected_home = vec![false; m];
+    let mut connected_work = vec![false; m];
 
+    // 人の数も考慮する
     fn calc_profit(
         p: &Point,
         profit_table: &Vec<Vec<usize>>,
-        grid_to_peopleidx: &Vec<Vec<Vec<usize>>>,
+        grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
     ) -> usize {
         profit_table[p.x][p.y] * 100 + grid_to_peopleidx[p.x][p.y].len()
     }
@@ -591,18 +588,34 @@ fn main() {
 
         let sta1pos = Point::new(sta1.1, sta1.2);
         let sta2pos = Point::new(sta2.1, sta2.2);
-        for (dx, dy) in MANHATTAN_2_LIST {
-            let nx1 = sta1pos.x as i32 + dx;
-            let ny1 = sta1pos.y as i32 + dy;
-            let nx2 = sta2pos.x as i32 + dx;
-            let ny2 = sta2pos.y as i32 + dy;
-            if in_range(nx1, ny1) {
-                grid_to_peopleidx[nx1 as usize][ny1 as usize].clear();
-                profit_table[nx1 as usize][ny1 as usize] = 0;
+        let mut candidx = collections::HashSet::<usize>::new();
+        candidx.extend(&grid_to_peopleidx[sta1pos.x][sta1pos.y].clone());
+        candidx.extend(&grid_to_peopleidx[sta2pos.x][sta2pos.y].clone());
+        for &i in candidx.iter() {
+            let pp = &people[i];
+            if manhattan_distance(&pp.home, &sta1pos) <= 2
+                || manhattan_distance(&pp.home, &sta2pos) <= 2
+            {
+                connected_home[i] = true;
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = pp.home.x as i32 + dx;
+                    let ny = pp.home.y as i32 + dy;
+                    if in_range(nx, ny) {
+                        grid_to_peopleidx[nx as usize][ny as usize].remove(&i);
+                    }
+                }
             }
-            if in_range(nx2, ny2) {
-                grid_to_peopleidx[nx2 as usize][ny2 as usize].clear();
-                profit_table[nx2 as usize][ny2 as usize] = 0;
+            if manhattan_distance(&pp.work, &sta1pos) <= 2
+                || manhattan_distance(&pp.work, &sta2pos) <= 2
+            {
+                connected_work[i] = true;
+                for (dx, dy) in MANHATTAN_2_LIST {
+                    let nx = pp.work.x as i32 + dx;
+                    let ny = pp.work.y as i32 + dy;
+                    if in_range(nx, ny) {
+                        grid_to_peopleidx[nx as usize][ny as usize].remove(&i);
+                    }
+                }
             }
         }
 
@@ -612,26 +625,18 @@ fn main() {
                 let p = Point::new(i, j);
                 for &id in &grid_to_peopleidx[i][j] {
                     let pp = &people[id];
-                    if manhattan_distance(&pp.home, &p) <= 2 {
-                        if manhattan_distance(&pp.work, &sta1pos) <= 2
-                            || manhattan_distance(&pp.work, &sta2pos) <= 2
-                        {
-                            profit_table[i][j] += pp.dist();
-                        }
+                    assert!(!(connected_home[id] && connected_work[id]));
+                    if manhattan_distance(&pp.home, &p) <= 2 && connected_work[id] {
+                        profit_table[i][j] += pp.dist();
                     }
-                    if manhattan_distance(&pp.work, &p) <= 2 {
-                        if manhattan_distance(&pp.home, &sta1pos) <= 2
-                            || manhattan_distance(&pp.home, &sta2pos) <= 2
-                        {
-                            profit_table[i][j] += pp.dist();
-                        }
+                    if manhattan_distance(&pp.work, &p) <= 2 && connected_home[id] {
+                        profit_table[i][j] += pp.dist();
                     }
                 }
             }
         }
 
         // 降順にしたいので profit_table[b].cmp[a] にする
-        // 人の数も考慮する
         cand_pos.sort_unstable_by(|a, b| {
             (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
                 a,
@@ -727,39 +732,50 @@ fn main() {
         target_grid[target.x][target.y] = '#';
 
         // 新しく p に駅ができるので更新
-        for (dx, dy) in MANHATTAN_2_LIST {
-            if dx == 0 && dy == 0 {
-                continue;
-            }
-            let nx = p.x as i32 + dx;
-            let ny = p.y as i32 + dy;
-            if in_range(nx, ny) {
-                grid_to_peopleidx[nx as usize][ny as usize].clear();
-                profit_table[nx as usize][ny as usize] = 0;
-            }
-        }
-        for &i in grid_to_peopleidx[p.x][p.y].iter() {
+        let candidx = grid_to_peopleidx[p.x][p.y].clone();
+        for &i in candidx.iter() {
             let pp = &people[i];
             if manhattan_distance(&pp.home, &p) <= 2 {
+                connected_home[i] = true;
                 for (dx, dy) in MANHATTAN_2_LIST {
-                    let nx = pp.work.x as i32 + dx;
-                    let ny = pp.work.y as i32 + dy;
-                    if in_range(nx, ny) && grid_to_peopleidx[nx as usize][ny as usize].len() > 0 {
-                        profit_table[nx as usize][ny as usize] += pp.dist();
+                    let nxh = pp.home.x as i32 + dx;
+                    let nyh = pp.home.y as i32 + dy;
+                    let nxw = pp.work.x as i32 + dx;
+                    let nyw = pp.work.y as i32 + dy;
+                    if in_range(nxh, nyh) {
+                        grid_to_peopleidx[nxh as usize][nyh as usize].remove(&i);
+                        if connected_work[i] {
+                            profit_table[nxh as usize][nyh as usize] -= pp.dist();
+                        }
+                    }
+                    if in_range(nxw, nyw)
+                        && grid_to_peopleidx[nxw as usize][nyw as usize].contains(&i)
+                    {
+                        profit_table[nxw as usize][nyw as usize] += pp.dist();
                     }
                 }
             }
             if manhattan_distance(&pp.work, &p) <= 2 {
+                connected_work[i] = true;
                 for (dx, dy) in MANHATTAN_2_LIST {
-                    let nx = pp.home.x as i32 + dx;
-                    let ny = pp.home.y as i32 + dy;
-                    if in_range(nx, ny) && grid_to_peopleidx[nx as usize][ny as usize].len() > 0 {
-                        profit_table[nx as usize][ny as usize] += pp.dist();
+                    let nxh = pp.home.x as i32 + dx;
+                    let nyh = pp.home.y as i32 + dy;
+                    let nxw = pp.work.x as i32 + dx;
+                    let nyw = pp.work.y as i32 + dy;
+                    if in_range(nxw, nyw) {
+                        grid_to_peopleidx[nxw as usize][nyw as usize].remove(&i);
+                        if connected_home[i] {
+                            profit_table[nxw as usize][nyw as usize] -= pp.dist();
+                        }
+                    }
+                    if in_range(nxh, nyh)
+                        && grid_to_peopleidx[nxh as usize][nyh as usize].contains(&i)
+                    {
+                        profit_table[nxh as usize][nyh as usize] += pp.dist();
                     }
                 }
             }
         }
-        grid_to_peopleidx[p.x][p.y].clear();
 
         cand_pos.sort_unstable_by(|a, b| {
             (calc_profit(b, &profit_table, &grid_to_peopleidx)).cmp(&calc_profit(
