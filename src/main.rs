@@ -654,82 +654,89 @@ fn main() {
     while !cand_pos.is_empty() {
         let &p = cand_pos.first().unwrap();
         cand_pos.remove(0);
-        // BFS
-        // 01 にする必要はない: 駅にぶつかったら終了するので既存の線路は使わない？
-        let mut grid_dist = vec![vec![INF; N]; N];
-        let mut que = collections::VecDeque::new();
-        que.push_back(p);
-        grid_dist[p.x][p.y] = 0;
-        let mut target = Point::new(!0, !0);
-        while !que.is_empty() {
-            let q = que.pop_front().unwrap();
-            if target_grid[q.x][q.y] == '#' {
-                target = q;
-                break;
-            }
-            for &r in &[q.left(), q.right(), q.up(), q.down()] {
-                if !r.in_range()
-                    || grid_dist[r.x][r.y] != INF
-                    || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
-                {
-                    continue;
-                }
-                grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
-                que.push_back(r);
-            }
-        }
-        // 到達不可能
-        if target == Point::new(!0, !0) {
-            // cand_pos.push(p);
-            continue;
-        }
 
-        build_todo.push_back((RailType::Station, p.x, p.y));
-
-        // 復元
-        let mut now_pos = target;
-        let mut prv_pos = target;
-        while now_pos != p {
-            let mut next_pos = now_pos;
-            let mut cand = vec![
-                now_pos.left(),
-                now_pos.right(),
-                now_pos.up(),
-                now_pos.down(),
-            ];
-            cand.shuffle(&mut rng);
-            for &q in &cand {
-                if q.in_range() && grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
-                    next_pos = q;
+        // もしすでに線路がひかれていればそこに置くだけ
+        if target_grid[p.x][p.y] != '.' {
+            target_grid[p.x][p.y] = '#';
+            build_todo.push_back((RailType::Station, p.x, p.y));
+        } else {
+            // BFS
+            // 01 にする必要はない: 駅にぶつかったら終了するので既存の線路は使わない？
+            let mut grid_dist = vec![vec![INF; N]; N];
+            let mut que = collections::VecDeque::new();
+            que.push_back(p);
+            grid_dist[p.x][p.y] = 0;
+            let mut target = Point::new(!0, !0);
+            while !que.is_empty() {
+                let q = que.pop_front().unwrap();
+                if target_grid[q.x][q.y] == '#' {
+                    target = q;
                     break;
                 }
+                for &r in &[q.left(), q.right(), q.up(), q.down()] {
+                    if !r.in_range()
+                        || grid_dist[r.x][r.y] != INF
+                        || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
+                    {
+                        continue;
+                    }
+                    grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                    que.push_back(r);
+                }
             }
-            assert_ne!(next_pos, now_pos);
+            // 到達不可能
+            if target == Point::new(!0, !0) {
+                // cand_pos.push(p);
+                continue;
+            }
 
-            if target_grid[now_pos.x][now_pos.y] == '#' {
-                target_grid[now_pos.x][now_pos.y] = '#';
-            } else if prv_pos != now_pos {
-                // どの向きにつながるか
-                let mut mask = 0usize;
-                for &(q, msk) in &[
-                    (now_pos.left(), MASK_L),
-                    (now_pos.right(), MASK_R),
-                    (now_pos.up(), MASK_U),
-                    (now_pos.down(), MASK_D),
-                ] {
-                    if q == prv_pos || q == next_pos {
-                        mask |= msk;
+            build_todo.push_back((RailType::Station, p.x, p.y));
+
+            // 復元
+            let mut now_pos = target;
+            let mut prv_pos = target;
+            while now_pos != p {
+                let mut next_pos = now_pos;
+                let mut cand = vec![
+                    now_pos.left(),
+                    now_pos.right(),
+                    now_pos.up(),
+                    now_pos.down(),
+                ];
+                cand.shuffle(&mut rng);
+                for &q in &cand {
+                    if q.in_range() && grid_dist[q.x][q.y] + 1 == grid_dist[now_pos.x][now_pos.y] {
+                        next_pos = q;
+                        break;
                     }
                 }
-                target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
-                build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
-            }
+                assert_ne!(next_pos, now_pos);
 
-            prv_pos = now_pos;
-            now_pos = next_pos;
+                if target_grid[now_pos.x][now_pos.y] == '#' {
+                    target_grid[now_pos.x][now_pos.y] = '#';
+                } else if prv_pos != now_pos {
+                    // どの向きにつながるか
+                    let mut mask = 0usize;
+                    for &(q, msk) in &[
+                        (now_pos.left(), MASK_L),
+                        (now_pos.right(), MASK_R),
+                        (now_pos.up(), MASK_U),
+                        (now_pos.down(), MASK_D),
+                    ] {
+                        if q == prv_pos || q == next_pos {
+                            mask |= msk;
+                        }
+                    }
+                    target_grid[now_pos.x][now_pos.y] = RailType::from_mask(mask).to_char();
+                    build_todo.push_back((RailType::from_mask(mask), now_pos.x, now_pos.y));
+                }
+
+                prv_pos = now_pos;
+                now_pos = next_pos;
+            }
+            target_grid[p.x][p.y] = '#';
+            target_grid[target.x][target.y] = '#';
         }
-        target_grid[p.x][p.y] = '#';
-        target_grid[target.x][target.y] = '#';
 
         // 新しく p に駅ができるので更新
         let candidx = grid_to_peopleidx[p.x][p.y].clone();
