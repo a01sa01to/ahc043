@@ -280,7 +280,6 @@ fn main() {
         people: &Vec<Person>,
         m: usize,
         k_: usize,
-        num_turn: usize,
         stations: &Vec<Point>,
     ) -> Vec<((GridState, Point), (usize, usize))> {
         let mut k = k_;
@@ -349,7 +348,7 @@ fn main() {
                     }
                     for (q, income) in cand {
                         let score = income as i64
-                            * (num_turn as i64 - 1 - manhattan_distance(&p, &q) as i64)
+                            * (T as i64 - 1 - manhattan_distance(&p, &q) as i64)
                             - (2 * COST_STATION
                                 + (manhattan_distance(&p, &q) - 1) as usize * COST_RAIL)
                                 as i64;
@@ -779,7 +778,7 @@ fn main() {
         let mut grid_state = vec![vec![GridState::Empty; N]; N];
 
         // (output, ターン終了時の (money, income))
-        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); num_turn];
+        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
 
         for i in 0..m {
             if !people2sta[i].0.is_empty() && !people2sta[i].1.is_empty() {
@@ -787,11 +786,11 @@ fn main() {
             }
         }
 
-        while turn < num_turn {
+        while turn < T {
             turn += 1;
 
             if build_todo.is_empty() {
-                for x in turn..=num_turn {
+                for x in turn..=T {
                     k += income;
                     ans[x - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
                 }
@@ -856,7 +855,7 @@ fn main() {
 
     // 余裕をもって 2000ms で終了
     while time.elapsed().as_millis() < 2000 {
-        let ans = solve(&people, m, k, T + 100, &prv_sta);
+        let ans = solve(&people, m, k, &prv_sta);
         eprintln!("#{}: {}ms", cnttry, time.elapsed().as_millis());
 
         // 駅一覧を取得
