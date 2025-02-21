@@ -738,53 +738,14 @@ fn main() {
             }
         }
 
-        let stations = {
-            let mut res = Vec::new();
-            for i in 0..N {
-                for j in 0..N {
-                    if target_grid[i][j] == '#' {
-                        res.push(Point::new(i, j));
-                    }
-                }
-            }
-            res
-        };
-
-        let people2sta = {
-            let mut res = vec![(Vec::new(), Vec::new()); m];
-            for (i, p) in people.iter().enumerate() {
-                for (j, s) in stations.iter().enumerate() {
-                    for (dx, dy) in MANHATTAN_2_LIST {
-                        let nx = s.x as i32 + dx;
-                        let ny = s.y as i32 + dy;
-                        let po = Point::new(nx as usize, ny as usize);
-                        if po.in_range() && p.home == po {
-                            res[i].0.push(j);
-                        }
-                        if po.in_range() && p.work == po {
-                            res[i].1.push(j);
-                        }
-                    }
-                }
-            }
-            res
-        };
-
         // 答えを出すパート
         let mut turn = 0;
         let mut income = 0;
-        let mut nconnected_peopleidx = collections::HashSet::new();
         let mut grid_dsu = ac_library::Dsu::new(N * N);
         let mut grid_state = vec![vec![GridState::Empty; N]; N];
 
         // (output, ターン終了時の (money, income))
         let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
-
-        for i in 0..m {
-            if !people2sta[i].0.is_empty() && !people2sta[i].1.is_empty() {
-                nconnected_peopleidx.insert(i);
-            }
-        }
 
         while turn < T {
             turn += 1;
