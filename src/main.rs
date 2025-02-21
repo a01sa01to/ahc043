@@ -349,11 +349,13 @@ fn main() {
                     }
                     for (q, income) in cand {
                         let score = income as i64
-                            * (num_turn as i64 - 2 - manhattan_distance(&p, &q) as i64)
-                            - (2 * COST_STATION + manhattan_distance(&p, &q) as usize * COST_RAIL)
+                            * (num_turn as i64 - 1 - manhattan_distance(&p, &q) as i64)
+                            - (2 * COST_STATION
+                                + (manhattan_distance(&p, &q) - 1) as usize * COST_RAIL)
                                 as i64;
                         if score > best.0
-                            && 2 * COST_STATION + manhattan_distance(&p, &q) as usize * COST_RAIL
+                            && 2 * COST_STATION
+                                + (manhattan_distance(&p, &q) - 1) as usize * COST_RAIL
                                 <= k
                         {
                             best = (score, p, q);
