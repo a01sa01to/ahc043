@@ -30,15 +30,6 @@ const MANHATTAN_2_LIST: [(i32, i32); 13] = [
     (2, 0),
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
-enum Direction {
-    None,
-    Left,
-    Right,
-    Up,
-    Down,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GridState {
     Empty = -1,
@@ -479,17 +470,13 @@ fn main() {
             p: &Point,
             profit_table: &Vec<Vec<usize>>,
             grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
-            cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, Point, Direction)>>>>,
+            cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, Point)>>>>,
         ) -> i64 {
-            profit_table[p.x][p.y] as i64 * 50000i64
-                + grid_to_peopleidx[p.x][p.y].len() as i64 * 500i64
+            profit_table[p.x][p.y] as i64 * 10000i64
+                + grid_to_peopleidx[p.x][p.y].len() as i64 * 100i64
                 - (cost[p.x][p.y]
                     .peek()
-                    .or(Some(&Reverse((
-                        INF as u32,
-                        Point::new(!0, !0),
-                        Direction::None,
-                    ))))
+                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
                     .unwrap()
                     .0
                      .0 as i64)
@@ -539,55 +526,12 @@ fn main() {
                 }
             }
 
-            let sta1dir = {
-                let mut res = Direction::None;
-                for &(q, d) in &[
-                    (sta1pos.left(), Direction::Left),
-                    (sta1pos.right(), Direction::Right),
-                    (sta1pos.up(), Direction::Up),
-                    (sta1pos.down(), Direction::Down),
-                ] {
-                    if q.in_range() && target_grid[q.x][q.y] != '.' {
-                        res = d;
-                        break;
-                    }
-                }
-                assert_ne!(res, Direction::None);
-                res
-            };
-            let sta2dir = {
-                let mut res = Direction::None;
-                for &(q, d) in &[
-                    (sta2pos.left(), Direction::Left),
-                    (sta2pos.right(), Direction::Right),
-                    (sta2pos.up(), Direction::Up),
-                    (sta2pos.down(), Direction::Down),
-                ] {
-                    if q.in_range() && target_grid[q.x][q.y] != '.' {
-                        res = d;
-                        break;
-                    }
-                }
-                assert_ne!(res, Direction::None);
-                res
-            };
-            closed_station.insert((sta1pos, sta1dir));
-            closed_station.insert((sta2pos, sta2dir));
-
             for i in 0..N {
                 for j in 0..N {
                     let p = Point::new(i, j);
                     cand_pos.push(p);
-                    cost[i][j].push(Reverse((
-                        manhattan_distance(&sta1pos, &p),
-                        sta1pos,
-                        sta1dir,
-                    )));
-                    cost[i][j].push(Reverse((
-                        manhattan_distance(&sta2pos, &p),
-                        sta2pos,
-                        sta2dir,
-                    )));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta1pos, &p), sta1pos)));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta2pos, &p), sta2pos)));
                     for &id in &grid_to_peopleidx[i][j] {
                         let pp = &people[id];
                         assert!(!(connected_home[id] && connected_work[id]));
@@ -622,8 +566,6 @@ fn main() {
             }
         }
 
-        let station_bonus = 5;
-
         while !cand_pos.is_empty() {
             let &p = cand_pos.first().unwrap();
             cand_pos.remove(0);
@@ -633,19 +575,16 @@ fn main() {
                 target_grid[p.x][p.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
-                // Dijkstra: 今後駅が建つ予定ならそこを通りたい
+                // 01BFS: 今後駅が建つ予定ならそこを通りたい
                 let mut grid_dist = vec![vec![INF; N]; N];
-                let mut que = collections::BinaryHeap::new();
+                let mut que = collections::VecDeque::new();
                 let mut prv = vec![vec![Point::new(!0, !0); N]; N];
-                que.push(Reverse((0, 0, p)));
+                que.push_back(p);
                 grid_dist[p.x][p.y] = 0;
                 prv[p.x][p.y] = p;
                 let mut target = Point::new(!0, !0);
                 while !que.is_empty() {
-                    let (d, bonus, q) = que.pop().unwrap().0;
-                    if d > grid_dist[q.x][q.y] {
-                        continue;
-                    }
+                    let q = que.pop_front().unwrap();
                     if target_grid[q.x][q.y] == '#' && target == Point::new(!0, !0) {
                         target = q;
                     }
@@ -653,27 +592,19 @@ fn main() {
                     cand.shuffle(&mut rng);
                     for &r in &cand {
                         if !r.in_range()
+                            || grid_dist[r.x][r.y] != INF
                             || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
                         {
                             continue;
                         }
-
-                        let new_bonus = if is_station_pos[r.x][r.y] {
-                            station_bonus
-                        } else if bonus > 0 {
-                            bonus - 1
+                        if is_station_pos[r.x][r.y] {
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
+                            que.push_front(r);
                         } else {
-                            0
-                        };
-
-                        let new_dist =
-                            grid_dist[q.x][q.y] + if new_bonus > 0 { 1 } else { station_bonus };
-
-                        if grid_dist[r.x][r.y] > new_dist {
-                            grid_dist[r.x][r.y] = new_dist;
-                            que.push(Reverse((new_dist, new_bonus, r)));
-                            prv[r.x][r.y] = q;
+                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                            que.push_back(r);
                         }
+                        prv[r.x][r.y] = q;
                     }
                 }
                 // 到達不可能
@@ -714,35 +645,25 @@ fn main() {
                 target_grid[target.x][target.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
 
-                for &(q, d) in &[
-                    (target.left(), Direction::Left),
-                    (target.right(), Direction::Right),
-                    (target.up(), Direction::Up),
-                    (target.down(), Direction::Down),
-                ] {
-                    if q.in_range() && target_grid[q.x][q.y] != '.' {
-                        closed_station.insert((target, d));
+                {
+                    let mut flg = true;
+                    for q in &[target.left(), target.right(), target.up(), target.down()] {
+                        if q.in_range() && target_grid[q.x][q.y] == '.' {
+                            flg = false;
+                            break;
+                        }
+                    }
+                    if flg {
+                        closed_station.insert(target);
                     }
                 }
 
                 for i in 0..N {
                     for j in 0..N {
                         if grid_dist[i][j] != INF {
-                            for &(q, d) in &[
-                                (Point::new(i, j).left(), Direction::Left),
-                                (Point::new(i, j).right(), Direction::Right),
-                                (Point::new(i, j).up(), Direction::Up),
-                                (Point::new(i, j).down(), Direction::Down),
-                            ] {
-                                if q.in_range() && grid_dist[i][j] >= grid_dist[q.x][q.y] {
-                                    cost[i][j].push(Reverse((grid_dist[i][j] as u32, p, d)));
-                                }
-                            }
+                            cost[i][j].push(Reverse((grid_dist[i][j] as u32, p)));
                             while !cost[i][j].is_empty()
-                                && closed_station.contains(&(
-                                    cost[i][j].peek().unwrap().0 .1,
-                                    cost[i][j].peek().unwrap().0 .2,
-                                ))
+                                && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
                             {
                                 cost[i][j].pop();
                             }
