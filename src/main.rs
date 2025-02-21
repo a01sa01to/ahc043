@@ -631,16 +631,19 @@ fn main() {
                 target_grid[p.x][p.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
-                // 01BFS: 今後駅が建つ予定ならそこを通りたい
+                // Dijkstra: 今後駅が建つ予定ならそこを通りたい
                 let mut grid_dist = vec![vec![INF; N]; N];
-                let mut que = collections::VecDeque::new();
+                let mut que = collections::BinaryHeap::new();
                 let mut prv = vec![vec![Point::new(!0, !0); N]; N];
-                que.push_back(p);
+                que.push(Reverse((0, p)));
                 grid_dist[p.x][p.y] = 0;
                 prv[p.x][p.y] = p;
                 let mut target = Point::new(!0, !0);
                 while !que.is_empty() {
-                    let q = que.pop_front().unwrap();
+                    let (d, q) = que.pop().unwrap().0;
+                    if d > grid_dist[q.x][q.y] {
+                        continue;
+                    }
                     if target_grid[q.x][q.y] == '#' && target == Point::new(!0, !0) {
                         target = q;
                     }
@@ -648,19 +651,17 @@ fn main() {
                     cand.shuffle(&mut rng);
                     for &r in &cand {
                         if !r.in_range()
-                            || grid_dist[r.x][r.y] != INF
                             || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
                         {
                             continue;
                         }
-                        if is_station_pos[r.x][r.y] {
-                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
-                            que.push_front(r);
-                        } else {
-                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
-                            que.push_back(r);
+                        let new_dist =
+                            grid_dist[q.x][q.y] + if is_station_pos[r.x][r.y] { 0 } else { 1 };
+                        if grid_dist[r.x][r.y] > new_dist {
+                            grid_dist[r.x][r.y] = new_dist;
+                            que.push(Reverse((new_dist, r)));
+                            prv[r.x][r.y] = q;
                         }
-                        prv[r.x][r.y] = q;
                     }
                 }
                 // 到達不可能
