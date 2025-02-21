@@ -348,11 +348,15 @@ fn main() {
                         }
                     }
                     for (q, income) in cand {
-                        if income > best.0
+                        let score = income as i64
+                            * (num_turn as i64 - 2 - manhattan_distance(&p, &q) as i64)
+                            - (2 * COST_STATION + manhattan_distance(&p, &q) as usize * COST_RAIL)
+                                as i64;
+                        if score > best.0
                             && 2 * COST_STATION + manhattan_distance(&p, &q) as usize * COST_RAIL
                                 <= k
                         {
-                            best = (income, p, q);
+                            best = (score, p, q);
                         }
                     }
                 }
@@ -850,14 +854,7 @@ fn main() {
 
     // 余裕をもって 2000ms で終了
     while time.elapsed().as_millis() < 2000 {
-        // 最初は 100 ターン余計に実行してやって、どんどん減らしていく
-        let ans = solve(
-            &people,
-            m,
-            k,
-            T + (100 - 10 * cnttry as i32).max(0) as usize,
-            &prv_sta,
-        );
+        let ans = solve(&people, m, k, T + 100, &prv_sta);
         eprintln!("#{}: {}ms", cnttry, time.elapsed().as_millis());
 
         // 駅一覧を取得
