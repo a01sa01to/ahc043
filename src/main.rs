@@ -481,8 +481,8 @@ fn main() {
             grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
             cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, Point, Direction)>>>>,
         ) -> i64 {
-            profit_table[p.x][p.y] as i64 * 10000i64
-                + grid_to_peopleidx[p.x][p.y].len() as i64 * 100i64
+            profit_table[p.x][p.y] as i64 * 50000i64
+                + grid_to_peopleidx[p.x][p.y].len() as i64 * 500i64
                 - (cost[p.x][p.y]
                     .peek()
                     .or(Some(&Reverse((
@@ -622,6 +622,8 @@ fn main() {
             }
         }
 
+        let station_bonus = 5;
+
         while !cand_pos.is_empty() {
             let &p = cand_pos.first().unwrap();
             cand_pos.remove(0);
@@ -635,12 +637,12 @@ fn main() {
                 let mut grid_dist = vec![vec![INF; N]; N];
                 let mut que = collections::BinaryHeap::new();
                 let mut prv = vec![vec![Point::new(!0, !0); N]; N];
-                que.push(Reverse((0, p)));
+                que.push(Reverse((0, 0, p)));
                 grid_dist[p.x][p.y] = 0;
                 prv[p.x][p.y] = p;
                 let mut target = Point::new(!0, !0);
                 while !que.is_empty() {
-                    let (d, q) = que.pop().unwrap().0;
+                    let (d, bonus, q) = que.pop().unwrap().0;
                     if d > grid_dist[q.x][q.y] {
                         continue;
                     }
@@ -655,11 +657,21 @@ fn main() {
                         {
                             continue;
                         }
+
+                        let new_bonus = if is_station_pos[r.x][r.y] {
+                            station_bonus
+                        } else if bonus > 0 {
+                            bonus - 1
+                        } else {
+                            0
+                        };
+
                         let new_dist =
-                            grid_dist[q.x][q.y] + if is_station_pos[r.x][r.y] { 0 } else { 1 };
+                            grid_dist[q.x][q.y] + if new_bonus > 0 { 1 } else { station_bonus };
+
                         if grid_dist[r.x][r.y] > new_dist {
                             grid_dist[r.x][r.y] = new_dist;
-                            que.push(Reverse((new_dist, r)));
+                            que.push(Reverse((new_dist, new_bonus, r)));
                             prv[r.x][r.y] = q;
                         }
                     }
