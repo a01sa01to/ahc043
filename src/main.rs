@@ -30,6 +30,12 @@ const MANHATTAN_2_LIST: [(i32, i32); 13] = [
     (2, 0),
 ];
 
+#[derive(PartialEq)]
+enum SolverType {
+    Type1,
+    Type2,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GridState {
     Empty = -1,
@@ -281,6 +287,7 @@ fn main() {
         m: usize,
         k_: usize,
         stations: &Vec<Point>,
+        solver: SolverType,
     ) -> Vec<((GridState, Point), (usize, usize))> {
         let mut k = k_;
 
@@ -615,7 +622,7 @@ fn main() {
                 let sca = calc_profit(a, &profit_table, &grid_to_peopleidx, &cost);
                 let scb = calc_profit(b, &profit_table, &grid_to_peopleidx, &cost);
 
-                if income < 200 || k < 5000 {
+                if solver == SolverType::Type1 {
                     // これまでと同じように計算
                     return scb.cmp(&sca);
                 }
@@ -827,9 +834,15 @@ fn main() {
     let mut prv_sta = Vec::new();
     let mut cnttry = 0;
 
-    // 余裕をもって 2000ms で終了
-    while time.elapsed().as_millis() < 2000 {
-        let ans = solve(&people, m, k, &prv_sta);
+    // 余裕をもって 2300ms で終了
+    while time.elapsed().as_millis() < 2300 {
+        let solver = if time.elapsed().as_millis() < 1250 {
+            SolverType::Type1
+        } else {
+            SolverType::Type2
+        };
+
+        let ans = solve(&people, m, k, &prv_sta, solver);
         eprintln!("#{}: {}ms", cnttry, time.elapsed().as_millis());
 
         // 駅一覧を取得
