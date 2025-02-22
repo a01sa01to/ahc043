@@ -694,8 +694,12 @@ fn main() {
             let &p = cand_pos.first().unwrap();
             cand_pos.remove(0);
 
+            // もしすでに駅が建ってれば何もしない
+            if grid_state[p.x][p.y] == GridState::Station {
+                continue;
+            }
             // もしすでに線路がひかれていればそこに置くだけ
-            if target_grid[p.x][p.y] != '.' {
+            else if target_grid[p.x][p.y] != '.' {
                 target_grid[p.x][p.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
