@@ -576,11 +576,11 @@ fn main() {
                 build_todo.push_back((GridState::Station, p.x, p.y));
             } else {
                 // 01BFS: 今後駅が建つ予定ならそこを通りたい
-                let mut grid_dist = vec![vec![INF; N]; N];
+                let mut grid_dist = vec![vec![(INF, INF); N]; N]; // 0: 駅を通る 01 スコア, 1: リアル距離
                 let mut que = collections::VecDeque::new();
                 let mut prv = vec![vec![Point::new(!0, !0); N]; N];
                 que.push_back(p);
-                grid_dist[p.x][p.y] = 0;
+                grid_dist[p.x][p.y] = (0, 0);
                 prv[p.x][p.y] = p;
                 let mut target = Point::new(!0, !0);
                 while !que.is_empty() {
@@ -592,16 +592,17 @@ fn main() {
                     cand.shuffle(&mut rng);
                     for &r in &cand {
                         if !r.in_range()
-                            || grid_dist[r.x][r.y] != INF
+                            || grid_dist[r.x][r.y].0 != INF
                             || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
                         {
                             continue;
                         }
+                        grid_dist[r.x][r.y].1 = grid_dist[q.x][q.y].1 + 1;
                         if is_station_pos[r.x][r.y] {
-                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
+                            grid_dist[r.x][r.y].0 = grid_dist[q.x][q.y].0;
                             que.push_front(r);
                         } else {
-                            grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                            grid_dist[r.x][r.y].0 = grid_dist[q.x][q.y].0 + 1;
                             que.push_back(r);
                         }
                         prv[r.x][r.y] = q;
@@ -660,8 +661,8 @@ fn main() {
 
                 for i in 0..N {
                     for j in 0..N {
-                        if grid_dist[i][j] != INF {
-                            cost[i][j].push(Reverse((grid_dist[i][j] as u32, p)));
+                        if grid_dist[i][j].1 != INF {
+                            cost[i][j].push(Reverse((grid_dist[i][j].1 as u32, p)));
                             while !cost[i][j].is_empty()
                                 && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
                             {
