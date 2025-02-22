@@ -399,17 +399,18 @@ fn main() {
                     let mut cand = [q.left(), q.right(), q.up(), q.down()];
                     cand.shuffle(&mut rng);
                     for &r in &cand {
-                        if !r.in_range() || grid_dist[r.x][r.y] != INF {
+                        if !r.in_range() {
                             continue;
                         }
-                        if is_station_pos[r.x][r.y] {
+                        if is_station_pos[r.x][r.y] && grid_dist[r.x][r.y] > grid_dist[q.x][q.y] {
                             grid_dist[r.x][r.y] = grid_dist[q.x][q.y];
+                            prv[r.x][r.y] = q;
                             que.push_front(r);
-                        } else {
+                        } else if grid_dist[r.x][r.y] > grid_dist[q.x][q.y] + 1 {
                             grid_dist[r.x][r.y] = grid_dist[q.x][q.y] + 1;
+                            prv[r.x][r.y] = q;
                             que.push_back(r);
                         }
-                        prv[r.x][r.y] = q;
                     }
                 }
 
@@ -715,20 +716,22 @@ fn main() {
                     cand.shuffle(&mut rng);
                     for &r in &cand {
                         if !r.in_range()
-                            || grid_dist[r.x][r.y].0 != INF
                             || (target_grid[r.x][r.y] != '.' && target_grid[r.x][r.y] != '#')
                         {
                             continue;
                         }
-                        grid_dist[r.x][r.y].1 = grid_dist[q.x][q.y].1 + 1;
-                        if is_station_pos[r.x][r.y] {
+                        if is_station_pos[r.x][r.y] && grid_dist[r.x][r.y].0 > grid_dist[q.x][q.y].0
+                        {
                             grid_dist[r.x][r.y].0 = grid_dist[q.x][q.y].0;
+                            grid_dist[r.x][r.y].1 = grid_dist[q.x][q.y].1 + 1;
+                            prv[r.x][r.y] = q;
                             que.push_front(r);
-                        } else {
+                        } else if grid_dist[r.x][r.y].0 > grid_dist[q.x][q.y].0 + 1 {
                             grid_dist[r.x][r.y].0 = grid_dist[q.x][q.y].0 + 1;
+                            grid_dist[r.x][r.y].1 = grid_dist[q.x][q.y].1 + 1;
+                            prv[r.x][r.y] = q;
                             que.push_back(r);
                         }
-                        prv[r.x][r.y] = q;
                     }
                 }
                 // 到達不可能
