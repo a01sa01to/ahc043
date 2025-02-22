@@ -36,6 +36,15 @@ enum SolverType {
     Type2,
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, PartialOrd, Ord, Copy)]
+enum Direction {
+    None,
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum GridState {
     Empty = -1,
@@ -467,7 +476,6 @@ fn main() {
         // どんどん駅をつなげていく
         let mut profit_table = vec![vec![0; N]; N];
         let mut cost = vec![vec![collections::BinaryHeap::new(); N]; N];
-        let mut closed_station = collections::HashSet::new();
         let mut cand_pos = Vec::new();
         let mut connected_home = vec![false; m];
         let mut connected_work = vec![false; m];
@@ -477,13 +485,16 @@ fn main() {
             p: &Point,
             profit_table: &Vec<Vec<usize>>,
             grid_to_peopleidx: &Vec<Vec<collections::HashSet<usize>>>,
-            cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, Point)>>>>,
+            cost: &Vec<Vec<collections::BinaryHeap<Reverse<(u32, (Point, Direction))>>>>,
         ) -> i64 {
             profit_table[p.x][p.y] as i64 * 10000i64
                 + grid_to_peopleidx[p.x][p.y].len() as i64 * 100i64
                 - (cost[p.x][p.y]
                     .peek()
-                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .or(Some(&Reverse((
+                        INF as u32,
+                        (Point::new(!0, !0), Direction::None),
+                    ))))
                     .unwrap()
                     .0
                      .0 as i64)
@@ -533,12 +544,47 @@ fn main() {
                 }
             }
 
+            let sta1dir = {
+                let mut res = Direction::None;
+                for &(q, d) in &[
+                    (sta1pos.left(), Direction::Left),
+                    (sta1pos.right(), Direction::Right),
+                    (sta1pos.up(), Direction::Up),
+                    (sta1pos.down(), Direction::Down),
+                ] {
+                    if q.in_range() && target_grid[q.x][q.y] != '.' {
+                        res = d;
+                    }
+                }
+                res
+            };
+            let sta2dir = {
+                let mut res = Direction::None;
+                for &(q, d) in &[
+                    (sta2pos.left(), Direction::Left),
+                    (sta2pos.right(), Direction::Right),
+                    (sta2pos.up(), Direction::Up),
+                    (sta2pos.down(), Direction::Down),
+                ] {
+                    if q.in_range() && target_grid[q.x][q.y] != '.' {
+                        res = d;
+                    }
+                }
+                res
+            };
+
             for i in 0..N {
                 for j in 0..N {
                     let p = Point::new(i, j);
                     cand_pos.push(p);
-                    cost[i][j].push(Reverse((manhattan_distance(&sta1pos, &p) - 1, sta1pos)));
-                    cost[i][j].push(Reverse((manhattan_distance(&sta2pos, &p) - 1, sta2pos)));
+                    cost[i][j].push(Reverse((
+                        manhattan_distance(&sta1pos, &p) - 1,
+                        (sta1pos, sta1dir),
+                    )));
+                    cost[i][j].push(Reverse((
+                        manhattan_distance(&sta2pos, &p) - 1,
+                        (sta2pos, sta2dir),
+                    )));
                     for &id in &grid_to_peopleidx[i][j] {
                         let pp = &people[id];
                         assert!(!(connected_home[id] && connected_work[id]));
@@ -630,7 +676,10 @@ fn main() {
                 // 今後の収益性を判断
                 let cost_a = cost[a.x][a.y]
                     .peek()
-                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .or(Some(&Reverse((
+                        INF as u32,
+                        (Point::new(!0, !0), Direction::None),
+                    ))))
                     .unwrap()
                     .0
                      .0 as i64
@@ -638,7 +687,10 @@ fn main() {
                     + COST_STATION as i64;
                 let cost_b = cost[b.x][b.y]
                     .peek()
-                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .or(Some(&Reverse((
+                        INF as u32,
+                        (Point::new(!0, !0), Direction::None),
+                    ))))
                     .unwrap()
                     .0
                      .0 as i64
@@ -747,32 +799,46 @@ fn main() {
                 target_grid[target.x][target.y] = '#';
                 build_todo.push_back((GridState::Station, p.x, p.y));
 
-                {
-                    let mut flg = true;
-                    for q in &[target.left(), target.right(), target.up(), target.down()] {
-                        if q.in_range() && target_grid[q.x][q.y] == '.' {
-                            flg = false;
-                            break;
-                        }
-                    }
-                    if flg {
-                        closed_station.insert(target);
-                    }
-                }
-
                 for i in 0..N {
                     for j in 0..N {
                         if target_grid[i][j] != '.' {
                             // どうせ Point は使われない
-                            cost[i][j].push(Reverse((0, Point::new(!0, !0))));
+                            cost[i][j].push(Reverse((0, (Point::new(!0, !0), Direction::None))));
                         }
                         if grid_dist[i][j].1 != INF {
-                            cost[i][j].push(Reverse((grid_dist[i][j].1 as u32 - 1, p)));
+                            // もう全部つなげて下で pop させる
+                            cost[i][j].push(Reverse((
+                                grid_dist[i][j].1 as u32 - 1,
+                                (p, Direction::Left),
+                            )));
+                            cost[i][j].push(Reverse((
+                                grid_dist[i][j].1 as u32 - 1,
+                                (p, Direction::Right),
+                            )));
+                            cost[i][j]
+                                .push(Reverse((grid_dist[i][j].1 as u32 - 1, (p, Direction::Up))));
+                            cost[i][j].push(Reverse((
+                                grid_dist[i][j].1 as u32 - 1,
+                                (p, Direction::Down),
+                            )));
                         }
-                        while !cost[i][j].is_empty()
-                            && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
-                        {
-                            cost[i][j].pop();
+                        while !cost[i][j].is_empty() {
+                            let (_, (q, d)) = cost[i][j].peek().unwrap().0;
+                            if d == Direction::None {
+                                break;
+                            }
+                            let p = match d {
+                                Direction::Left => q.left(),
+                                Direction::Right => q.right(),
+                                Direction::Up => q.up(),
+                                Direction::Down => q.down(),
+                                _ => unreachable!(),
+                            };
+                            if !p.in_range() || target_grid[p.x][p.y] != '.' {
+                                cost[i][j].pop();
+                                continue;
+                            }
+                            break;
                         }
                     }
                 }
