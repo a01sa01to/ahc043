@@ -1,6 +1,6 @@
 extern crate rand;
 use proconio::{fastout, input};
-use rand::seq::SliceRandom;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use std::{cmp::Reverse, collections, fmt, time};
 
 const COST_STATION: usize = 5000;
@@ -292,6 +292,7 @@ fn main() {
     };
 
     fn solve(
+        cnttry: usize,
         people: &Vec<Person>,
         m: usize,
         k_: usize,
@@ -300,7 +301,7 @@ fn main() {
     ) -> Vec<((GridState, Point), (usize, usize))> {
         let mut k = k_;
 
-        let mut rng = rand::thread_rng();
+        let mut rng: StdRng = SeedableRng::seed_from_u64(cnttry as u64);
         let mut grid_to_peopleidx = vec![vec![collections::HashSet::new(); N]; N];
         {
             for i in 0..m {
@@ -875,7 +876,7 @@ fn main() {
             SolverType::Type2
         };
 
-        let ans = solve(&people, m, k, &prv_sta, solver);
+        let ans = solve(cnttry, &people, m, k, &prv_sta, solver);
         eprintln!("#{}: {}ms", cnttry, time.elapsed().as_millis());
 
         // 駅一覧を取得
