@@ -390,34 +390,6 @@ fn main() {
                 grid_dist[best.1.x][best.1.y] = 0;
                 prv[best.1.x][best.1.y] = best.1;
 
-                // コストが収まるように番兵しとく
-                {
-                    let u = best.1.x.min(best.2.x);
-                    let d = best.1.x.max(best.2.x);
-                    let l = best.1.y.min(best.2.y);
-                    let r = best.1.y.max(best.2.y);
-                    if u > 0 {
-                        for j in l..=r {
-                            grid_dist[u - 1][j] = 0;
-                        }
-                    }
-                    if d < N - 1 {
-                        for j in l..=r {
-                            grid_dist[d + 1][j] = 0;
-                        }
-                    }
-                    if l > 0 {
-                        for i in u..=d {
-                            grid_dist[i][l - 1] = 0;
-                        }
-                    }
-                    if r < N - 1 {
-                        for i in u..=d {
-                            grid_dist[i][r + 1] = 0;
-                        }
-                    }
-                }
-
                 while !que.is_empty() {
                     let q = que.pop_front().unwrap();
                     if q == best.2 {
