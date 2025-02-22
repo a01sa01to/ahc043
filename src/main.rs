@@ -664,8 +664,6 @@ fn main() {
                     score_b.cmp(&score_a)
                 } else {
                     // これまでと同じ方法で計算
-                    let sca = calc_profit(a, &profit_table, &grid_to_peopleidx, &cost);
-                    let scb = calc_profit(b, &profit_table, &grid_to_peopleidx, &cost);
                     scb.cmp(&sca)
                 }
             });
