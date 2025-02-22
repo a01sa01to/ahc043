@@ -530,8 +530,8 @@ fn main() {
                 for j in 0..N {
                     let p = Point::new(i, j);
                     cand_pos.push(p);
-                    cost[i][j].push(Reverse((manhattan_distance(&sta1pos, &p), sta1pos)));
-                    cost[i][j].push(Reverse((manhattan_distance(&sta2pos, &p), sta2pos)));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta1pos, &p) - 1, sta1pos)));
+                    cost[i][j].push(Reverse((manhattan_distance(&sta2pos, &p) - 1, sta2pos)));
                     for &id in &grid_to_peopleidx[i][j] {
                         let pp = &people[id];
                         assert!(!(connected_home[id] && connected_work[id]));
@@ -544,29 +544,125 @@ fn main() {
                     }
                 }
             }
-
-            // 降順にしたいので profit_table[b].cmp[a] にする
-            cand_pos.sort_unstable_by(|a, b| {
-                calc_profit(b, &profit_table, &grid_to_peopleidx, &cost).cmp(&calc_profit(
-                    a,
-                    &profit_table,
-                    &grid_to_peopleidx,
-                    &cost,
-                ))
-            });
-            while !cand_pos.is_empty()
-                && calc_profit(
-                    cand_pos.last().unwrap(),
-                    &profit_table,
-                    &grid_to_peopleidx,
-                    &cost,
-                ) <= 0
-            {
-                cand_pos.pop();
-            }
         }
 
-        while !cand_pos.is_empty() {
+        // 答えを出すパート
+        let mut turn = 0;
+        let mut income = 0;
+        let mut grid_dsu = ac_library::Dsu::new(N * N);
+        let mut grid_state = vec![vec![GridState::Empty; N]; N];
+
+        // (output, ターン終了時の (money, income))
+        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
+
+        while turn < T {
+            if !build_todo.is_empty() {
+                turn += 1;
+
+                let &(r, i, j) = build_todo.front().unwrap();
+                let p = Point::new(i, j);
+                assert!(p.in_range());
+                assert_ne!(r, GridState::Empty);
+
+                if r == GridState::Station && k >= COST_STATION {
+                    k -= COST_STATION;
+                } else if r != GridState::Station && k >= COST_RAIL {
+                    k -= COST_RAIL;
+                } else {
+                    k += income;
+                    ans[turn - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
+                    continue;
+                }
+
+                build_todo.pop_front();
+                grid_state[i][j] = r;
+
+                if grid_state[i][j].can_conn_left()
+                    && p.left().in_range()
+                    && grid_state[p.left().x][p.left().y].can_conn_right()
+                {
+                    grid_dsu.merge(p.to_idx(), p.left().to_idx());
+                }
+                if grid_state[i][j].can_conn_right()
+                    && p.right().in_range()
+                    && grid_state[p.right().x][p.right().y].can_conn_left()
+                {
+                    grid_dsu.merge(p.to_idx(), p.right().to_idx());
+                }
+                if grid_state[i][j].can_conn_up()
+                    && p.up().in_range()
+                    && grid_state[p.up().x][p.up().y].can_conn_down()
+                {
+                    grid_dsu.merge(p.to_idx(), p.up().to_idx());
+                }
+                if grid_state[i][j].can_conn_down()
+                    && p.down().in_range()
+                    && grid_state[p.down().x][p.down().y].can_conn_up()
+                {
+                    grid_dsu.merge(p.to_idx(), p.down().to_idx());
+                }
+
+                income = calc_income(&people, &mut grid_dsu, &grid_state);
+
+                k += income;
+
+                ans[turn - 1] = ((r, p), (k, income));
+
+                continue;
+            }
+
+            cand_pos.sort_unstable_by(|a, b| {
+                let sca = calc_profit(a, &profit_table, &grid_to_peopleidx, &cost);
+                let scb = calc_profit(b, &profit_table, &grid_to_peopleidx, &cost);
+
+                if income < 200 || k < 5000 {
+                    // これまでと同じように計算
+                    return scb.cmp(&sca);
+                }
+
+                // 今後の収益性を判断
+                let cost_a = cost[a.x][a.y]
+                    .peek()
+                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .unwrap()
+                    .0
+                     .0 as i64
+                    * COST_RAIL as i64
+                    + COST_STATION as i64;
+                let cost_b = cost[b.x][b.y]
+                    .peek()
+                    .or(Some(&Reverse((INF as u32, Point::new(!0, !0)))))
+                    .unwrap()
+                    .0
+                     .0 as i64
+                    * COST_RAIL as i64
+                    + COST_STATION as i64;
+
+                let waitturn_a = ((cost_a - k as i64).max(0) + income as i64 - 1) / income as i64;
+                let waitturn_b = ((cost_b - k as i64).max(0) + income as i64 - 1) / income as i64;
+
+                let buildturn_a = 1 + (cost_a - COST_STATION as i64) / COST_RAIL as i64;
+                let buildturn_b = 1 + (cost_b - COST_STATION as i64) / COST_RAIL as i64;
+
+                let profit_a = profit_table[a.x][a.y];
+                let profit_b = profit_table[b.x][b.y];
+
+                let score_a =
+                    ((T - turn) as i64 - waitturn_a - buildturn_a) * profit_a as i64 - cost_a;
+                let score_b =
+                    ((T - turn) as i64 - waitturn_b - buildturn_b) * profit_b as i64 - cost_b;
+
+                if score_a > 0 || score_b > 0 {
+                    // スコア大きいほうを返したいので逆順
+                    score_b.cmp(&score_a)
+                } else {
+                    // これまでと同じ方法で計算
+                    let sca = calc_profit(a, &profit_table, &grid_to_peopleidx, &cost);
+                    let scb = calc_profit(b, &profit_table, &grid_to_peopleidx, &cost);
+                    scb.cmp(&sca)
+                }
+            });
+
             let &p = cand_pos.first().unwrap();
             cand_pos.remove(0);
 
@@ -722,96 +818,8 @@ fn main() {
                     }
                 }
             }
-
-            cand_pos.sort_unstable_by(|a, b| {
-                (calc_profit(b, &profit_table, &grid_to_peopleidx, &cost)).cmp(&calc_profit(
-                    a,
-                    &profit_table,
-                    &grid_to_peopleidx,
-                    &cost,
-                ))
-            });
-            while !cand_pos.is_empty()
-                && calc_profit(
-                    cand_pos.last().unwrap(),
-                    &profit_table,
-                    &grid_to_peopleidx,
-                    &cost,
-                ) <= 0
-            {
-                cand_pos.pop();
-            }
         }
 
-        // 答えを出すパート
-        let mut turn = 0;
-        let mut income = 0;
-        let mut grid_dsu = ac_library::Dsu::new(N * N);
-        let mut grid_state = vec![vec![GridState::Empty; N]; N];
-
-        // (output, ターン終了時の (money, income))
-        let mut ans = vec![((GridState::Empty, Point::new(!0, !0)), (0, 0)); T];
-
-        while turn < T {
-            turn += 1;
-
-            if build_todo.is_empty() {
-                for x in turn..=T {
-                    k += income;
-                    ans[x - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
-                }
-                break;
-            }
-
-            let &(r, i, j) = build_todo.front().unwrap();
-            let p = Point::new(i, j);
-            assert!(p.in_range());
-            assert_ne!(r, GridState::Empty);
-
-            if r == GridState::Station && k >= COST_STATION {
-                k -= COST_STATION;
-            } else if r != GridState::Station && k >= COST_RAIL {
-                k -= COST_RAIL;
-            } else {
-                k += income;
-                ans[turn - 1] = ((GridState::Empty, Point::new(!0, !0)), (k, income));
-                continue;
-            }
-
-            build_todo.pop_front();
-            grid_state[i][j] = r;
-
-            if grid_state[i][j].can_conn_left()
-                && p.left().in_range()
-                && grid_state[p.left().x][p.left().y].can_conn_right()
-            {
-                grid_dsu.merge(p.to_idx(), p.left().to_idx());
-            }
-            if grid_state[i][j].can_conn_right()
-                && p.right().in_range()
-                && grid_state[p.right().x][p.right().y].can_conn_left()
-            {
-                grid_dsu.merge(p.to_idx(), p.right().to_idx());
-            }
-            if grid_state[i][j].can_conn_up()
-                && p.up().in_range()
-                && grid_state[p.up().x][p.up().y].can_conn_down()
-            {
-                grid_dsu.merge(p.to_idx(), p.up().to_idx());
-            }
-            if grid_state[i][j].can_conn_down()
-                && p.down().in_range()
-                && grid_state[p.down().x][p.down().y].can_conn_up()
-            {
-                grid_dsu.merge(p.to_idx(), p.down().to_idx());
-            }
-
-            income = calc_income(&people, &mut grid_dsu, &grid_state);
-
-            k += income;
-
-            ans[turn - 1] = ((r, p), (k, income));
-        }
         ans
     }
 
