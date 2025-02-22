@@ -661,13 +661,17 @@ fn main() {
 
                 for i in 0..N {
                     for j in 0..N {
+                        if target_grid[i][j] != '.' {
+                            // どうせ Point は使われない
+                            cost[i][j].push(Reverse((0, Point::new(!0, !0))));
+                        }
                         if grid_dist[i][j].1 != INF {
-                            cost[i][j].push(Reverse((grid_dist[i][j].1 as u32, p)));
-                            while !cost[i][j].is_empty()
-                                && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
-                            {
-                                cost[i][j].pop();
-                            }
+                            cost[i][j].push(Reverse((grid_dist[i][j].1 as u32 - 1, p)));
+                        }
+                        while !cost[i][j].is_empty()
+                            && closed_station.contains(&cost[i][j].peek().unwrap().0 .1)
+                        {
+                            cost[i][j].pop();
                         }
                     }
                 }
