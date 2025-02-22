@@ -896,7 +896,7 @@ fn main() {
         let score = {
             let mut res = 0;
             for i in 0..T {
-                res = res.max(ans[i].1 .0 + ans[i].1 .1 * (T - i));
+                res = res.max(ans[i].1 .0 + ans[i].1 .1 * (T - i - 1));
             }
             res
         };
@@ -909,7 +909,7 @@ fn main() {
 
     // 最終的に待ったほうがいいなら Revert
     for t in (0..T).rev() {
-        if best.1[T - 1].1 .0 < best.1[t].1 .0 + best.1[t].1 .1 * (T - t) {
+        if best.1[T - 1].1 .0 < best.1[t].1 .0 + best.1[t].1 .1 * (T - t - 1) {
             for x in t + 1..T {
                 best.1[x] = (
                     (GridState::Empty, Point::new(!0, !0)),
