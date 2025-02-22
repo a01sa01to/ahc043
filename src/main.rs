@@ -646,7 +646,7 @@ fn main() {
                 }
 
                 // 今後の収益性を判断
-                let cost_a = cost[a.x][a.y]
+                let numrail_a = cost[a.x][a.y]
                     .peek()
                     .or(Some(&Reverse((
                         INF as u32,
@@ -654,10 +654,8 @@ fn main() {
                     ))))
                     .unwrap()
                     .0
-                     .0 as i64
-                    * COST_RAIL as i64
-                    + COST_STATION as i64;
-                let cost_b = cost[b.x][b.y]
+                     .0 as i64;
+                let numrail_b = cost[b.x][b.y]
                     .peek()
                     .or(Some(&Reverse((
                         INF as u32,
@@ -665,23 +663,22 @@ fn main() {
                     ))))
                     .unwrap()
                     .0
-                     .0 as i64
-                    * COST_RAIL as i64
-                    + COST_STATION as i64;
+                     .0 as i64;
 
-                let waitturn_a = ((cost_a - k as i64).max(0) + income as i64 - 1) / income as i64;
-                let waitturn_b = ((cost_b - k as i64).max(0) + income as i64 - 1) / income as i64;
+                let cost_a = numrail_a as i64 * COST_RAIL as i64 + COST_STATION as i64;
+                let cost_b = numrail_b as i64 * COST_RAIL as i64 + COST_STATION as i64;
 
-                let buildturn_a = 1 + (cost_a - COST_STATION as i64) / COST_RAIL as i64;
-                let buildturn_b = 1 + (cost_b - COST_STATION as i64) / COST_RAIL as i64;
+                let waitturn_a = (cost_a - k as i64 + income as i64 - 1).max(0) / income as i64;
+                let waitturn_b = (cost_b - k as i64 + income as i64 - 1).max(0) / income as i64;
 
-                let profit_a = profit_table[a.x][a.y];
-                let profit_b = profit_table[b.x][b.y];
+                let buildturn_a = 1 + numrail_a;
+                let buildturn_b = 1 + numrail_b;
 
-                let score_a =
-                    ((T - turn) as i64 - waitturn_a - buildturn_a) * profit_a as i64 - cost_a;
-                let score_b =
-                    ((T - turn) as i64 - waitturn_b - buildturn_b) * profit_b as i64 - cost_b;
+                let profit_a = profit_table[a.x][a.y] as i64;
+                let profit_b = profit_table[b.x][b.y] as i64;
+
+                let score_a = ((T - turn) as i64 - waitturn_a - buildturn_a) * profit_a - cost_a;
+                let score_b = ((T - turn) as i64 - waitturn_b - buildturn_b) * profit_b - cost_b;
 
                 if score_a > 0 || score_b > 0 {
                     // スコア大きいほうを返したいので逆順
