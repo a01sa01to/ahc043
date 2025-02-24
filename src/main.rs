@@ -911,7 +911,7 @@ fn main() {
 
     // 余裕をもって 2300ms で終了
     while time.elapsed().as_millis() < 2300 {
-        let solver = if time.elapsed().as_millis() < 1250 {
+        let solver = if time.elapsed().as_millis() < 1500 {
             SolverType::Type1
         } else {
             SolverType::Type2
