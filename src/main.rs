@@ -518,47 +518,47 @@ fn main() {
                 }
             }
 
-            let sta1dir = {
-                let mut res = Direction::None;
-                for &(q, d) in &[
-                    (sta1pos.left(), Direction::Left),
-                    (sta1pos.right(), Direction::Right),
-                    (sta1pos.up(), Direction::Up),
-                    (sta1pos.down(), Direction::Down),
-                ] {
-                    if q.in_range() && target_grid[q.x][q.y] != '.' {
-                        res = d;
+            // BFS
+            for &start in &[sta1pos, sta2pos] {
+                let mut que = collections::VecDeque::new();
+                let mut dist = vec![vec![INF; N]; N];
+                que.push_back(start);
+                dist[start.x][start.y] = 0;
+                while !que.is_empty() {
+                    let q = que.pop_front().unwrap();
+                    for &nxt in &[q.left(), q.right(), q.up(), q.down()] {
+                        if nxt.in_range()
+                            && dist[nxt.x][nxt.y] == INF
+                            && target_grid[nxt.x][nxt.y] == '.'
+                        {
+                            dist[nxt.x][nxt.y] = dist[q.x][q.y] + 1;
+                            que.push_back(nxt);
+                        }
                     }
                 }
-                res
-            };
-            let sta2dir = {
-                let mut res = Direction::None;
-                for &(q, d) in &[
-                    (sta2pos.left(), Direction::Left),
-                    (sta2pos.right(), Direction::Right),
-                    (sta2pos.up(), Direction::Up),
-                    (sta2pos.down(), Direction::Down),
-                ] {
-                    if q.in_range() && target_grid[q.x][q.y] != '.' {
-                        res = d;
+                for i in 0..N {
+                    for j in 0..N {
+                        if dist[i][j] != INF && target_grid[i][j] == '.' {
+                            // いったん全方位いれちゃう
+                            for &dir in &[
+                                Direction::Left,
+                                Direction::Right,
+                                Direction::Up,
+                                Direction::Down,
+                            ] {
+                                cost[i][j].push(Reverse((dist[i][j] as u32 - 1, (start, dir))));
+                            }
+                        } else if target_grid[i][j] != '.' && target_grid[i][j] != '#' {
+                            cost[i][j].push(Reverse((0, (Point::new(!0, !0), Direction::None))));
+                        }
                     }
                 }
-                res
-            };
+            }
 
             for i in 0..N {
                 for j in 0..N {
                     let p = Point::new(i, j);
                     cand_pos.push(p);
-                    cost[i][j].push(Reverse((
-                        manhattan_distance(&sta1pos, &p) - 1,
-                        (sta1pos, sta1dir),
-                    )));
-                    cost[i][j].push(Reverse((
-                        manhattan_distance(&sta2pos, &p) - 1,
-                        (sta2pos, sta2dir),
-                    )));
                     for &id in &grid_to_peopleidx[i][j] {
                         let pp = &people[id];
                         assert!(!(connected_home[id] && connected_work[id]));
@@ -568,6 +568,25 @@ fn main() {
                         if manhattan_distance(&pp.work, &p) <= 2 && connected_home[id] {
                             profit_table[i][j] += pp.dist();
                         }
+                    }
+
+                    while !cost[i][j].is_empty() {
+                        let (_, (q, d)) = cost[i][j].peek().unwrap().0;
+                        if d == Direction::None {
+                            break;
+                        }
+                        let p = match d {
+                            Direction::Left => q.left(),
+                            Direction::Right => q.right(),
+                            Direction::Up => q.up(),
+                            Direction::Down => q.down(),
+                            _ => unreachable!(),
+                        };
+                        if !p.in_range() || target_grid[p.x][p.y] != '.' {
+                            cost[i][j].pop();
+                            continue;
+                        }
+                        break;
                     }
                 }
             }
@@ -830,13 +849,32 @@ fn main() {
                     for (dx, dy) in MANHATTAN_2_LIST {
                         let nxh = pp.home.x as i32 + dx;
                         let nyh = pp.home.y as i32 + dy;
-                        let nxw = pp.work.x as i32 + dx;
-                        let nyw = pp.work.y as i32 + dy;
                         if in_range(nxh, nyh) {
                             grid_to_peopleidx[nxh as usize][nyh as usize].remove(&i);
-                            if connected_work[i] {
-                                profit_table[nxh as usize][nyh as usize] -= pp.dist();
-                            }
+                        }
+                    }
+                }
+                if manhattan_distance(&pp.work, &p) <= 2 {
+                    connected_work[i] = true;
+                    for (dx, dy) in MANHATTAN_2_LIST {
+                        let nxw = pp.work.x as i32 + dx;
+                        let nyw = pp.work.y as i32 + dy;
+                        if in_range(nxw, nyw) {
+                            grid_to_peopleidx[nxw as usize][nyw as usize].remove(&i);
+                        }
+                    }
+                }
+            }
+            for &i in candidx.iter() {
+                let pp = &people[i];
+                if manhattan_distance(&pp.home, &p) <= 2 {
+                    for (dx, dy) in MANHATTAN_2_LIST {
+                        let nxh = pp.home.x as i32 + dx;
+                        let nyh = pp.home.y as i32 + dy;
+                        let nxw = pp.work.x as i32 + dx;
+                        let nyw = pp.work.y as i32 + dy;
+                        if in_range(nxh, nyh) && connected_work[i] {
+                            profit_table[nxh as usize][nyh as usize] -= pp.dist();
                         }
                         if in_range(nxw, nyw)
                             && grid_to_peopleidx[nxw as usize][nyw as usize].contains(&i)
@@ -846,17 +884,13 @@ fn main() {
                     }
                 }
                 if manhattan_distance(&pp.work, &p) <= 2 {
-                    connected_work[i] = true;
                     for (dx, dy) in MANHATTAN_2_LIST {
                         let nxh = pp.home.x as i32 + dx;
                         let nyh = pp.home.y as i32 + dy;
                         let nxw = pp.work.x as i32 + dx;
                         let nyw = pp.work.y as i32 + dy;
-                        if in_range(nxw, nyw) {
-                            grid_to_peopleidx[nxw as usize][nyw as usize].remove(&i);
-                            if connected_home[i] {
-                                profit_table[nxw as usize][nyw as usize] -= pp.dist();
-                            }
+                        if in_range(nxw, nyw) && connected_home[i] {
+                            profit_table[nxw as usize][nyw as usize] -= pp.dist();
                         }
                         if in_range(nxh, nyh)
                             && grid_to_peopleidx[nxh as usize][nyh as usize].contains(&i)
